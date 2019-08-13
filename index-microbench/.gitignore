@@ -1,0 +1,14 @@
+*.bak
+*~
+*.a
+*.log
+*.o
+workload
+workload_string
+workloads
+result_*
+masstree/.deps/*.d
+*.cache
+*.status
+*.a
+emails_random.txt

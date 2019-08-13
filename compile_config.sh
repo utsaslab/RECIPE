@@ -1,0 +1,6 @@
+alias gcc='/usr/bin/gcc-7'
+alias cc='/usr/bin/gcc-7'
+alias g++='/usr/bin/g++-7'
+alias c++='/usr/bin/g++-7'
+export CC='/usr/bin/gcc-7'
+export CXX='/usr/bin/g++-7'

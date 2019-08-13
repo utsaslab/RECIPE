@@ -1,0 +1,17 @@
+./build
+./workloads
+./pm_count.out
+./extra
+./HOT/apps
+./HOT/CMakeLists.txt
+./HOT/LICENSE
+./HOT/README.md
+./HOT/releaseBuild.sh
+./HOT/runTests.sh
+./HOT/tests
+./HOT/third-party
+./results
+./index-microbench/workloads
+tags
+cscope.out
+cscope.files

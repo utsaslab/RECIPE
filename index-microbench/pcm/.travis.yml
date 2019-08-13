@@ -1,0 +1,16 @@
+language: cpp
+
+dist: trusty
+
+script:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cd MacMSRDriver && make kext library && cd ..; fi
+  - make
+
+os:
+  - linux
+  - osx
+
+compiler:
+  - gcc
+  - clang
+
