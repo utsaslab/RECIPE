@@ -3,10 +3,13 @@
 RECIPE: Reusing Concurrent In-Memory Indexes for Persistent Memory (SOSP 2019)
 
 ## Description
-
+RECIPE proposes a principled approach for converting concurrent indexes built for DRAM into crash-consistent indexes for persistent memory. This repository includes the implementations of the index structures for persistent memory converted from the existing concurrent DRAM indexes by following RECIPE. For performance evaluations, this repository also provides the microbenchmarks for index structures based on YCSB.
 
 ## Artifact Evaluation
-
+```
+$ bash ./build_run.sh
+```
+This script generates YCSB workloads and evaluates the performance of the index structures presented in paper. The evaluation results are stored in ./results directory as csv files. Please make sure to check the lists by checklists subsection in Benchmark detail section below, before running this script.
 
 ## Benchmark Detail
 
@@ -39,7 +42,7 @@ $ cat /proc/cpuinfo | grep clflush
 $ cat /proc/cpuinfo | grep clflushopt
 $ cat /proc/cpuinfo | grep clwb
 ```
-- Overall
+Overall
 ```
 $ vi CMakeLists.txt
 - add_definitions(-DCLFLUSH) (default configuration)
@@ -48,7 +51,7 @@ or
 or
 - add_definitions(-DCLWB)
 ```
-- CLHT
+CLHT
 ```
 $ vi CLHT/Makefile
 - CFLAGS= -D_GNU_SOURCE -DCLFLUSH (default configuration)
