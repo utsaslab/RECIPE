@@ -24,7 +24,8 @@ This script evaluates the performance of the index structures presented in paper
 ### Desired system configurations for Artifact Evaluation
 - Ubuntu 18.04.1 LTS
 - At least 32GB DRAM
-- CPU that supports at least 16 threads
+- x86-64 CPU supporting at least the AVX-2 and BMI-2 instruction sets (Haswell and newer)
+- x86-64 CPU supporting at least 16 threads
 
 ---
 

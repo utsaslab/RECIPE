@@ -1454,7 +1454,7 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[4], "zipfian") == 0) {
         ap = ZIPFIAN;
         fprintf(stderr, "Not supported access pattern: %s\n", argv[4]);
-        exit(1)
+        exit(1);
     } else {
         fprintf(stderr, "Unknown access pattern: %s\n", argv[4]);
         exit(1);
