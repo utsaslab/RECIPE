@@ -10,32 +10,32 @@ bash scripts/gen_workload.sh
 The list of benchmarks and the major performance results presented in the paper are as follows:
 
 ### Ordered Indexes
-We evaluate the converted indexes `P-ART`, `P-HOT`, `P-Masstree`, and `P-Bwtree` against `FAST&FAIR`, which is the state-of-the-art PM B+Tree. Each experiment will run with 16 threads.
+We evaluate the converted indexes `P-ART`, `P-HOT`, `P-Masstree`, and `P-Bwtree` against `FAST&FAIR`, which is the state-of-the-art PM B+Tree. Each experiment will run with 16 threads. Four kinds of workloads (A, B, C, E) will be used for evaluating tree indexes.
 
-![YCSB-Randint-Tree|100x100](https://github.com/utsaslab/RECIPE/blob/master/graphs/ycsb-tree-multithread-randint.png)
+![YCSB-Randint-Tree](https://github.com/utsaslab/RECIPE/blob/master/graphs/ycsb-tree-multithread-randint.png)
 <p align="center"> Figure 1 - YCSB Integer Keys: Tree indexes </p>
 
 #### Integer type keys
-In this section, we will evaluate the performance of ordered indexes with YCSB workload(A, B, C, E) where the random integer keys are used. For running experiments, please run below script. The script will compile the source code, run the experiments, and store the performance results into `results/ordered/int/` directory with csv format. Figure 1 shows the performance results measured on Optane DC Persistent Memory (PM). Although our artifact evaluations are based on DRAM, the overall trends of the results measured on DRAM should be similar to the results made on real PM.
+In this section, we will evaluate the performance of ordered indexes with YCSB workload(A, B, C, E) where the random integer keys are used. For running experiments, please run below script. The script will compile the source code, run the experiments, and store the performance results into `results/ycsb_int_tree.csv` directory with csv format. Figure 1 shows the performance results measured on Optane DC Persistent Memory (PM). Although our artifact evaluations are based on DRAM, the overall trends of the results measured on DRAM should be similar to the results made on real PM.
 ```
-bash scripts/build_run_int_ordered.sh
+bash scripts/ycsb_int_tree.sh
 ```
 
 ![YCSB-String-Tree](https://github.com/utsaslab/RECIPE/blob/master/graphs/ycsb-tree-multithread.png)
 <p align="center"> Figure 2 - YCSB String Keys: Tree indexes </p>
 
 #### String type keys
-In this section, we will measure the performance of ordered index with the same workload patterns while using the string type keys. For running experiments, please run below script. The script will compile the source code, run the experiments, and store the results into `results/ordered/string/` directory with csv format. Figure 2 also shows the results measured on Optane DC PM, but the overall trends meausred on DRAM should be similar.
+In this section, we will measure the performance of ordered index with the same workload patterns while using the string type keys. For running experiments, please run below script. The script will compile the source code, run the experiments, and store the results into `results/ycsb_str_tree.csv` directory with csv format. Figure 2 also shows the results measured on Optane DC PM, but the overall trends meausred on DRAM should be similar.
 ```
-bash scripts/build_run_str_ordered.sh
+bash scripts/ycsb_str_tree.sh
 ```
 
 ![YCSB-Randint-Hash](https://github.com/utsaslab/RECIPE/blob/master/graphs/ycsb-hash-multithread.png)
 <p align="center"> Figure 3 - YCSB Integer Keys: Hash tables </p>
 
 ### Unordered Indexes
-We evaluate P-CLHT against two persistent hash tables, CCEH and Level hashing. Samely with previous sections, for running experiments, please run below script. The script will compile the source code, run the experiments, and store the results into `results/unordered/int/` directory with csv format. Figure 3 shows the performance results measured on Optane DC PM and our results based on DRAM should have similar trend with it.
+We evaluate `P-CLHT` against two persistent hash tables, `CCEH` and `Level hashing`. Each hash table will be evaluated by using 16 threads and three kinds of workloads (A, B, C). Samely with previous sections, for running experiments, please run below script. The script will compile the source code, run the experiments, and store the results into `results/ycsb_int_hash.csv` directory with csv format. Figure 3 shows the performance results measured on Optane DC PM, but our results based on DRAM should have similar trend with it.
 
 ```
-bash scripts/build_run_int_unordered.sh
+bash scripts/ycsb_int_hash.sh
 ```
