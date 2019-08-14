@@ -12,7 +12,7 @@ The list of benchmarks and the major performance results presented in the paper 
 ### Ordered Indexes
 We evaluate the converted indexes `P-ART`, `P-HOT`, `P-Masstree`, and `P-Bwtree` against `FAST&FAIR`, which is the state-of-the-art PM B+Tree. Each experiment will run with 16 threads.
 
-![YCSB-Randint-Tree | 50%](https://github.com/utsaslab/RECIPE/blob/master/graphs/ycsb-tree-multithread-randint.png)
+![YCSB-Randint-Tree|100x100](https://github.com/utsaslab/RECIPE/blob/master/graphs/ycsb-tree-multithread-randint.png)
 <p align="center"> Figure 1 - YCSB Integer Keys: Tree indexes </p>
 
 #### Integer type keys
