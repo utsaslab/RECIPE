@@ -17,8 +17,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -mrtm -mcx16 -m
 #add_definitions(-DWRITE_LATENCY)
 #add_definitions(-DPINCNT)
 add_definitions(-DBWTREE_NODEBUG)
-#add_definitions(-DSTRING_TYPE)
-add_definitions(-DLOCAL_DATA)
 
 #Crash tests related
 #add_definitions(-DLOCK_INIT)

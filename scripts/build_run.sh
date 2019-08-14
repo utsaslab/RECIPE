@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source ./compile_config.sh
+source scripts/compile_config.sh
 
 sudo apt-get install --assume yes build-essential cmake libboost-all-dev libpapi-dev
 sudo apt-get install --assume yes libtbb-dev libjemalloc-dev
