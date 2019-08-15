@@ -75,6 +75,20 @@ or
 or
 - CFLAGS= -D_GNU_SOURCE -DCLWB
 ```
+
+Check if your machine supports AVX-2 and BMI-2.
+```
+$ lscpu | grep avx2
+$ lscpu | grep bmi2
+```
+AVX-2 and BMI-2 are required to run HOT ([Height Optimized Trie](https://github.com/speedskater/hot)).
+If your machine does not provide those primitives, please disable HOT from `CMakeLists.txt`.
+You can complete compile and run other index structures, except for HOT.
+```
+$ vi CMakeLists.txt
+set(HOT TRUE) --> set(HOT FALSE)
+```
+
 ---
 
 ### Generating YCSB workloads

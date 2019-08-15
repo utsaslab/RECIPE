@@ -1403,9 +1403,13 @@ int main(int argc, char **argv) {
     int index_type;
     if (strcmp(argv[1], "art") == 0)
         index_type = TYPE_ART;
-    else if (strcmp(argv[1], "hot") == 0)
+    else if (strcmp(argv[1], "hot") == 0) {
+#ifdef HOT
         index_type = TYPE_HOT;
-    else if (strcmp(argv[1], "bwtree") == 0)
+#else
+        return 1;
+#endif
+    } else if (strcmp(argv[1], "bwtree") == 0)
         index_type = TYPE_BWTREE;
     else if (strcmp(argv[1], "masstree") == 0)
         index_type = TYPE_MASSTREE;
