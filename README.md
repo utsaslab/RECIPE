@@ -146,4 +146,4 @@ Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access patte
 
 ## Contact
 
-Please contact us at `sklee@cs.utexas.edu` with any questions.
+Please contact us at `sklee@cs.utexas.edu` and `vijayc@utexas.edu` with any questions.
