@@ -1,23 +1,12 @@
-## RECIPE
+## RECIPE: Reusing Concurrent In-Memory Indexes for Persistent Memory (SOSP 2019)
 
-RECIPE: Reusing Concurrent In-Memory Indexes for Persistent Memory (SOSP 2019)
-
----
-
-## Description
 RECIPE proposes a principled approach for converting concurrent indexes built for DRAM into crash-consistent indexes for persistent memory. This repository includes the implementations of the index structures for persistent memory converted from the existing concurrent DRAM indexes by following RECIPE. For performance evaluations, this repository also provides the microbenchmarks for index structures based on YCSB.
-
----
 
 ## Artifact Evaluation
 
 For artifact evaluation, we will evaluates again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in `Benchmark detail` below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
 
----
-
-## Benchmark Detail
-
----
+## Benchmark Details
 
 ### Desired system configurations for Artifact Evaluation
 - Ubuntu 18.04.1 LTS
@@ -25,13 +14,9 @@ For artifact evaluation, we will evaluates again the performance of the index st
 - x86-64 CPU supporting at least 16 threads
 - x86-64 CPU supporting at least the AVX-2 and BMI-2 instruction sets (Haswell and newer)
 
----
-
 ### Required compile packages
 - cmake
 - Compiler: g++-7, gcc-7, c++17
-
----
 
 ### Dependencies
 Install build packages
@@ -42,7 +27,6 @@ Install jemalloc and tbb
 ```
 $ sudo apt-get install libtbb-dev libjemalloc-dev
 ```
----
 
 ### Checklists
 Configuration for workload size.
@@ -89,8 +73,6 @@ $ vi CMakeLists.txt
 set(HOT TRUE) --> set(HOT FALSE)
 ```
 
----
-
 ### Generating YCSB workloads
 Download YCSB source code
 ```
@@ -114,7 +96,6 @@ $ cd ./index-microbench/
 $ mkdir workloads
 $ make generate_workload
 ```
----
 
 ### Build & Run
 Build CLHT
@@ -141,8 +122,6 @@ Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access patte
        4. access pattern: uniform, zipfian
        5. number of threads (integer)
 ```
-
----
 
 ## Contact
 
