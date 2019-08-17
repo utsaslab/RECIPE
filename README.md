@@ -2,6 +2,14 @@
 
 RECIPE proposes a principled approach for converting concurrent indexes built for DRAM into crash-consistent indexes for persistent memory. This repository includes the implementations of the index structures for persistent memory converted from the existing concurrent DRAM indexes by following RECIPE. For performance evaluations, this repository also provides the microbenchmarks for index structures based on YCSB.
 
+
+Please cite the following paper if you use the RECIPE approach or RECIPE-converted indexes: 
+
+**RECIPE : Reusing Concurrent In-Memory Indexes for Persistent Memory**.
+Sekwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram. 
+*Proceedings of the The 27th ACM Symposium on Operating Systems Principles (SOSP 19)*. 
+[Bibtex](https://www.cs.utexas.edu/~vijay/bibtex/sosp19-recipe.bib). 
+
 ## Artifact Evaluation
 
 For artifact evaluation, we will evaluates again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in `Benchmark detail` below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
