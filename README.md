@@ -98,7 +98,7 @@ $ make generate_workload
 ```
 
 ### Build & Run
-Build CLHT
+Build P-CLHT
 ```
 $ cd ./P-CLHT
 $ bash compile.sh lb
