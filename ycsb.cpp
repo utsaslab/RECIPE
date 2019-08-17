@@ -10,22 +10,17 @@
 
 using namespace std;
 
-#include "ROWEX/Tree.h"
+#include "P-ART/Tree.h"
 #include "FAST_FAIR/btree.h"
 #include "CCEH/src/Level_hashing.h"
 #include "CCEH/src/CCEH.h"
 #include "masstree.h"
-#include "Bwtree/src/bwtree.h"
+#include "P-BwTree/src/bwtree.h"
 #include "clht.h"
 #include "ssmem.h"
-#ifdef PERF_PROFILE
-#include "hw_events.h"
-#endif
 
 #ifdef HOT
 #include <hot/rowex/HOTRowex.hpp>
-//#include <idx/benchmark/Benchmark.hpp>
-//#include <idx/benchmark/NoThreadInfo.hpp>
 #include <idx/contenthelpers/IdentityKeyExtractor.hpp>
 #include <idx/contenthelpers/OptionalValue.hpp>
 #endif
@@ -291,16 +286,6 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
         count++;
     }
 
-#ifdef PERF_PROFILE
-    std::atomic<int> range_complete, range_incomplete;
-    range_complete.store(0);
-    range_incomplete.store(0);
-    system("free -h");
-    open_perf_event();
-    do_ioctl_call(PERF_EVENT_IOC_RESET);
-    do_ioctl_call(PERF_EVENT_IOC_ENABLE);
-#endif
-
     if (index_type == TYPE_ART) {
         ART_ROWEX::Tree tree(loadKey);
 
@@ -317,12 +302,6 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -350,26 +329,12 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                         size_t resultsSize = ranges[i];
                         Key *start = start->make_leaf((char *)keys[i]->fkey, keys[i]->key_len, keys[i]->value);
                         tree.lookupRange(start, end, continueKey, results, resultsSize, resultsFound, t);
-#ifdef PERF_PROFILE
-                        if (resultsFound != ranges[i])
-                            range_incomplete.fetch_add(1);
-                        else {
-                            range_complete.fetch_add(1);
-                        }
-#endif
                     }
                 }
             });
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            printf("Scan complete: %d, Scan incomplete: %d\n", range_complete.load(), range_incomplete.load());
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-#endif
         }
 #ifdef HOT
     } else if (index_type == TYPE_HOT) {
@@ -391,12 +356,6 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -420,26 +379,12 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                         }
                     } else if (ops[i] == OP_SCAN) {
                         idx::contenthelpers::OptionalValue<Key *> result = mTrie.scan((char const *)keys[i]->fkey, ranges[i]);
-#ifdef PERF_PROFILE
-                        if (result.mIsValid)
-                            range_complete.fetch_add(1);
-                        else
-                            range_incomplete.fetch_add(1);
-#endif
                     }
                 }
             });
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            printf("Scan complete: %d, Scan incomplete: %d\n", range_complete.load(), range_incomplete.load());
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
 #endif
     } else if (index_type == TYPE_BWTREE) {
@@ -453,9 +398,7 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
             auto starttime = std::chrono::system_clock::now();
             next_thread_id.store(0);
             t->UpdateThreadLocal(num_thread);
-#ifndef PERF_PROFILE
             auto func = [&]() {
-#endif
                 int thread_id = next_thread_id.fetch_add(1);
                 uint64_t start_key = LOAD_SIZE / num_thread * (uint64_t)thread_id;
                 uint64_t end_key = start_key + LOAD_SIZE / num_thread;
@@ -466,7 +409,6 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                     t->Insert((char *)init_keys[i]->fkey, init_keys[i]->value);
                 }
                 t->UnregisterThread(thread_id);
-#ifndef PERF_PROFILE
             };
 
             std::vector<std::thread> thread_group;
@@ -476,17 +418,10 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
 
             for (int i = 0; i < num_thread; i++)
                 thread_group[i].join();
-#endif
             t->UpdateThreadLocal(1);
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -494,9 +429,7 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
             auto starttime = std::chrono::system_clock::now();
             next_thread_id.store(0);
             t->UpdateThreadLocal(num_thread);
-#ifndef PERF_PROFILE
             auto func = [&]() {
-#endif
                 std::vector<uint64_t> v{};
                 v.reserve(1);
                 int thread_id = next_thread_id.fetch_add(1);
@@ -524,18 +457,9 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                             resultsFound++;
                             it++;
                         }
-
-#ifdef PERF_PROFILE
-                        if (resultsFound != ranges[i])
-                            range_incomplete.fetch_add(1);
-                        else {
-                            range_complete.fetch_add(1);
-                        }
-#endif
                     }
                 }
                 t->UnregisterThread(thread_id);
-#ifndef PERF_PROFILE
             };
 
             std::vector<std::thread> thread_group;
@@ -545,19 +469,10 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
 
             for (int i = 0; i < num_thread; i++)
                 thread_group[i].join();
-#endif
             t->UpdateThreadLocal(1);
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            printf("Scan complete: %d, Scan incomplete: %d\n", range_complete.load(), range_incomplete.load());
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
     } else if (index_type == TYPE_MASSTREE) {
         masstree::leafnode *init_root = new masstree::leafnode(0);
@@ -574,12 +489,6 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -599,12 +508,6 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                         int resultsFound;
                         masstree::leafvalue *results[200];
                         resultsFound = tree->scan((char *)keys[i]->fkey, ranges[i], results);
-#ifdef PERF_PROFILE
-                        if (resultsFound == ranges[i])
-                            range_complete.fetch_add(1);
-                        else
-                            range_incomplete.fetch_add(1);
-#endif
                     } else if (ops[i] == OP_DELETE) {
                         tree->del((char *)keys[i]->fkey);
                     }
@@ -613,14 +516,6 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            printf("Scan complete: %d, Scan incomplete: %d\n", range_complete.load(), range_incomplete.load());
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
     } else if (index_type == TYPE_FASTFAIR) {
         fastfair::btree *bt = new fastfair::btree();
@@ -636,12 +531,6 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -663,26 +552,12 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                         uint64_t buf[200];
                         int resultsFound = 0;
                         bt->btree_search_range ((char *)keys[i]->fkey, (char *)maxKey.c_str(), buf, ranges[i], resultsFound);
-#ifdef PERF_PROFILE
-                        if (ranges[i] == resultsFound)
-                            range_complete.fetch_add(1);
-                        else
-                            range_incomplete.fetch_add(1);
-#endif
                     }
                 }
             });
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            printf("Scan complete: %d, Scan incomplete: %d\n", range_complete.load(), range_incomplete.load());
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
     }
 }
@@ -783,12 +658,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
     std::atomic<int> range_complete, range_incomplete;
     range_complete.store(0);
     range_incomplete.store(0);
-#ifdef PERF_PROFILE
-    system("free -h");
-    open_perf_event();
-    do_ioctl_call(PERF_EVENT_IOC_RESET);
-    do_ioctl_call(PERF_EVENT_IOC_ENABLE);
-#endif
 
     if (index_type == TYPE_ART) {
         ART_ROWEX::Tree tree(loadKey);
@@ -806,12 +675,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -838,27 +701,12 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                         size_t resultsSize = ranges[i];
                         Key *start = start->make_leaf(keys[i], sizeof(uint64_t), 0);
                         tree.lookupRange(start, end, continueKey, results, resultsSize, resultsFound, t);
-#ifdef PERF_PROFILE
-                        if (resultsFound != ranges[i])
-                            range_incomplete.fetch_add(1);
-                        else {
-                            range_complete.fetch_add(1);
-                        }
-#endif
                     }
                 }
             });
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            printf("Scan complete: %d, Scan incomplete: %d\n", range_complete.load(), range_incomplete.load());
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
 #ifdef HOT
     } else if (index_type == TYPE_HOT) {
@@ -882,12 +730,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -913,26 +755,12 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                         }
                     } else if (ops[i] == OP_SCAN) {
                         idx::contenthelpers::OptionalValue<IntKeyVal *> result = mTrie.scan(keys[i], ranges[i]);
-#ifdef PERF_PROFILE
-                        if (result.mIsValid)
-                            range_complete.fetch_add(1);
-                        else
-                            range_incomplete.fetch_add(1);
-#endif
                     }
                 }
             });
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            printf("Scan complete: %d, Scan incomplete: %d\n", range_complete.load(), range_incomplete.load());
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
 #endif
     } else if (index_type == TYPE_BWTREE) {
@@ -946,9 +774,7 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             auto starttime = std::chrono::system_clock::now();
             next_thread_id.store(0);
             t->UpdateThreadLocal(num_thread);
-#ifndef PERF_PROFILE
             auto func = [&]() {
-#endif
                 int thread_id = next_thread_id.fetch_add(1);
                 uint64_t start_key = LOAD_SIZE / num_thread * (uint64_t)thread_id;
                 uint64_t end_key = start_key + LOAD_SIZE / num_thread;
@@ -958,7 +784,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                     t->Insert(init_keys[i], init_keys[i]);
                 }
                 t->UnregisterThread(thread_id);
-#ifndef PERF_PROFILE
             };
 
             std::vector<std::thread> thread_group;
@@ -968,17 +793,10 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
 
             for (int i = 0; i < num_thread; i++)
                 thread_group[i].join();
-#endif
             t->UpdateThreadLocal(1);
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -986,9 +804,7 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             auto starttime = std::chrono::system_clock::now();
             next_thread_id.store(0);
             t->UpdateThreadLocal(num_thread);
-#ifndef PERF_PROFILE
             auto func = [&]() {
-#endif
                 std::vector<uint64_t> v{};
                 v.reserve(1);
                 int thread_id = next_thread_id.fetch_add(1);
@@ -1015,16 +831,9 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                             resultsFound++;
                             it++;
                         }
-#ifdef PERF_PROFILE
-                        if (resultsFound != ranges[i])
-                            range_incomplete.fetch_add(1);
-                        else
-                            range_complete.fetch_add(1);
-#endif
                     }
                 }
                 t->UnregisterThread(thread_id);
-#ifndef PERF_PROFILE
             };
 
             std::vector<std::thread> thread_group;
@@ -1034,19 +843,10 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
 
             for (int i = 0; i < num_thread; i++)
                 thread_group[i].join();
-#endif
             t->UpdateThreadLocal(1);
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            printf("Scan complete: %d, Scan incomplete: %d\n", range_complete.load(), range_incomplete.load());
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
     } else if (index_type == TYPE_MASSTREE) {
         masstree::leafnode *init_root = new masstree::leafnode(0);
@@ -1063,12 +863,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -1087,12 +881,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                     } else if (ops[i] == OP_SCAN) {
                         uint64_t buf[200];
                         int ret = tree->scan(keys[i], ranges[i], buf);
-#ifdef PERF_PROFILE
-                        if (ret != ranges[i])
-                            range_incomplete.fetch_add(1);
-                        else
-                            range_complete.fetch_add(1);
-#endif
                     } else if (ops[i] == OP_DELETE) {
                         tree->del(keys[i]);
                     }
@@ -1101,14 +889,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            printf("Scan complete: %d, Scan incomplete: %d\n", range_complete.load(), range_incomplete.load());
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
     } else if (index_type == TYPE_CLHT) {
         typedef struct thread_data {
@@ -1126,9 +906,7 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             // Load
             auto starttime = std::chrono::system_clock::now();
             next_thread_id.store(0);
-#ifndef PERF_PROFILE
             auto func = [&]() {
-#endif
                 int thread_id = next_thread_id.fetch_add(1);
                 tds[thread_id].id = thread_id;
                 tds[thread_id].ht = hashtable;
@@ -1143,7 +921,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                 for (uint64_t i = start_key; i < end_key; i++) {
                     clht_put(tds[thread_id].ht, init_keys[i], init_keys[i]);
                 }
-#ifndef PERF_PROFILE
             };
 
             std::vector<std::thread> thread_group;
@@ -1153,25 +930,16 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
 
             for (int i = 0; i < num_thread; i++)
                 thread_group[i].join();
-#endif
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
             // Run
             auto starttime = std::chrono::system_clock::now();
             next_thread_id.store(0);
-#ifndef PERF_PROFILE
             auto func = [&]() {
-#endif
                 int thread_id = next_thread_id.fetch_add(1);
                 tds[thread_id].id = thread_id;
                 tds[thread_id].ht = hashtable;
@@ -1191,7 +959,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                     } else if (ops[i] == OP_SCAN) {
                     }
                 }
-#ifndef PERF_PROFILE
             };
 
             std::vector<std::thread> thread_group;
@@ -1201,17 +968,9 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
 
             for (int i = 0; i < num_thread; i++)
                 thread_group[i].join();
-#endif
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
     } else if (index_type == TYPE_FASTFAIR) {
         fastfair::btree *bt = new fastfair::btree();
@@ -1227,12 +986,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -1254,26 +1007,12 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                         uint64_t buf[200];
                         int resultsFound = 0;
                         bt->btree_search_range (keys[i], UINT64_MAX, buf, ranges[i], resultsFound);
-#ifdef PERF_PROFILE
-                        if (ranges[i] == resultsFound)
-                            range_complete.fetch_add(1);
-                        else
-                            range_incomplete.fetch_add(1);
-#endif
                     }
                 }
             });
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            printf("Scan complete: %d, Scan incomplete: %d\n", range_complete.load(), range_incomplete.load());
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
     } else if (index_type == TYPE_LEVELHASH) {
         Hash *table = new LevelHashing(10);
@@ -1289,12 +1028,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -1317,13 +1050,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
     } else if (index_type == TYPE_CCEH) {
         Hash *table = new CCEH(2);
@@ -1339,12 +1065,6 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: load, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_RESET);
-#endif
         }
 
         {
@@ -1367,23 +1087,12 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
-#ifdef PERF_PROFILE
-            printf("Elapsed time: run, %f ,sec\n", duration.count() / 1000000.0);
-            system("free -h");
-            print_event();
-            do_ioctl_call(PERF_EVENT_IOC_DISABLE);
-            close_perf_desc();
-#endif
         }
     }
 }
 
 int main(int argc, char **argv) {
-#ifndef PINCNT
     if (argc != 6) {
-#else
-    if (argc != 7) {
-#endif
         std::cout << "Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access pattern] [number of threads]\n";
         std::cout << "1. index type: art hot bwtree masstree clht\n";
         std::cout << "               fastfair levelhash cceh\n";
@@ -1391,10 +1100,6 @@ int main(int argc, char **argv) {
         std::cout << "3. key distribution: randint, string\n";
         std::cout << "4. access pattern: uniform, zipfian\n";
         std::cout << "5. number of threads (integer)\n";
-#ifdef PINCNT
-        std::cout << "6. Load size tested for performance counters (integer)\n";
-#endif
-
         return 1;
     }
 
@@ -1466,11 +1171,6 @@ int main(int argc, char **argv) {
 
     int num_thread = atoi(argv[5]);
     tbb::task_scheduler_init init(num_thread);
-
-#ifdef PINCNT
-    LOAD_SIZE = atoi(argv[6]);
-    RUN_SIZE = 0;
-#endif
 
     if (kt != STRING_KEY) {
         std::vector<uint64_t> init_keys;

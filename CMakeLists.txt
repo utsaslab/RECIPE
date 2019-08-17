@@ -13,38 +13,7 @@ set(HOT TRUE)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -mrtm -mcx16 -mavx -mavx2 -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
 
 ## Basic configurations
-#add_definitions(-DPERF_PROFILE)
-#add_definitions(-DWRITE_LATENCY)
-#add_definitions(-DPINCNT)
 add_definitions(-DBWTREE_NODEBUG)
-
-#Crash tests related
-#add_definitions(-DLOCK_INIT)
-
-#ART Crash test related
-#add_definitions(-DCRASH_SPLIT)
-#add_definitions(-DCRASH_MERGE)
-#add_definitions(-DARTDEBUG)
-
-#CLHT Crash test related. Note: These can't be enabled here
-# Please enable them in CLHT/clht_lb_res.c
-#add_definitions(-DCRASH_AFTER_SWAP_CLHT)
-#add_definitions(-DCLHTDEBUG)
-
-#MASSTREE Crash Test related
-#add_definitions(-DMASSTREEDEBUG)
-#add_definitions(-DCRASH_AFTER_SPLIT_1)
-#add_definitions(-DCRASH_AFTER_SPLIT_2)
-#add_definitions(-DCRASH_AFTER_SPLIT_INNER_1)
-#add_definitions(-DCRASH_AFTER_SPLIT_INNER_2)
-#add_definitions(-DCRASH_AFTER_MERGE_1)
-#add_definitions(-DCRASH_AFTER_MERGE_INNER_1)
-
-#CCEH Crash test methods
-#add_definitions(-DCCEHDEBUG)
-#add_definitions(-DCRASH_AFTER_DD_STEP_1)
-#add_definitions(-DCRASH_AFTER_DD_STEP_2)
-#add_definitions(-DCRASH_AFTER_DD_STEP_3)
 
 ## Instruction options for Cache line flush
 add_definitions(-DCLFLUSH)
@@ -54,44 +23,36 @@ add_definitions(-DCLFLUSH)
 if (HOT)
 add_definitions(-DHOT)
 #add_subdirectory(HOT)
-include_directories(HOT/libs/hot/commons/include HOT/libs/hot/rowex/include HOT/libs/idx/benchmark-helpers/include HOT/libs/idx/map-helpers/include HOT/libs/idx/content-helpers/include HOT/libs/idx/utils/include HOT/libs/profile-lib/include)
+include_directories(P-HOT/libs/hot/commons/include P-HOT/libs/hot/rowex/include
+    P-HOT/libs/idx/benchmark-helpers/include P-HOT/libs/idx/map-helpers/include
+    P-HOT/libs/idx/content-helpers/include P-HOT/libs/idx/utils/include P-HOT/libs/profile-lib/include)
 endif()
 
 include_directories(CCEH)
-include_directories(masstree)
-include_directories(CLHT/include CLHT/external/include)
-include_directories(Bwtree)
+include_directories(P-Masstree)
+include_directories(P-CLHT/include P-CLHT/external/include)
+include_directories(P-BwTree)
 
 find_library(JemallocLib jemalloc)
 find_library(TbbLib tbb)
 find_package (Threads)
 
 if (HOT)
-set(ART_FILES ROWEX/Tree.cpp FAST_FAIR/btree.h
-    HOT/libs/hot/rowex/include/hot/rowex/HOTRowex.hpp CCEH/src/CCEH_MSB.cpp
-    CCEH/src/Level_hashing.cpp Bwtree/src/bwtree.cpp)
+set(ART_FILES P-ART/Tree.cpp FAST_FAIR/btree.h
+    P-HOT/libs/hot/rowex/include/hot/rowex/HOTRowex.hpp CCEH/src/CCEH_MSB.cpp
+    CCEH/src/Level_hashing.cpp P-BwTree/src/bwtree.cpp)
 else()
-set(ART_FILES ROWEX/Tree.cpp FAST_FAIR/btree.h CCEH/src/CCEH_MSB.cpp
-    CCEH/src/Level_hashing.cpp Bwtree/src/bwtree.cpp
-    Bwtree/test/test_suite.cpp) 
+set(ART_FILES P-ART/Tree.cpp FAST_FAIR/btree.h CCEH/src/CCEH_MSB.cpp
+    CCEH/src/Level_hashing.cpp P-BwTree/src/bwtree.cpp
+    P-BwTree/test/test_suite.cpp)
 endif()
 
 add_library(ARTSynchronized ${ART_FILES})
 target_link_libraries(ARTSynchronized ${TbbLib} ${JemallocLib}
-    ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_SOURCE_DIR}/CLHT/libclht.a
-    ${CMAKE_SOURCE_DIR}/CLHT/external/lib/libssmem.a)
+    ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_SOURCE_DIR}/P-CLHT/libclht.a
+    ${CMAKE_SOURCE_DIR}/P-CLHT/external/lib/libssmem.a)
 
 set(YCSB_TEST ycsb.cpp)
 add_executable(ycsb ${YCSB_TEST})
 
-#set(CRASH_TEST crash_test.cpp)
-#add_executable(crash ${CRASH_TEST})
-
-if (HOT)
-#target_link_libraries(ycsb ARTSynchronized hot-rowex-lib benchmark-helpers-lib content-helpers-lib atomic boost_system boost_thread)
 target_link_libraries(ycsb ARTSynchronized atomic boost_system boost_thread)
-#target_link_libraries(crash ARTSynchronized atomic boost_system boost_thread)
-else()
-target_link_libraries(ycsb ARTSynchronized atomic boost_system boost_thread)
-#target_link_libraries(crash ARTSynchronized atomic boost_system boost_thread)
-endif()
