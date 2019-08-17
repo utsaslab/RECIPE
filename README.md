@@ -123,6 +123,10 @@ Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access patte
        5. number of threads (integer)
 ```
 
+## License
+
+The licence for most of the P-* family of persistent indexes is Apache License (https://www.apache.org/licenses/LICENSE-2.0). This is consistent with the most of the indexes we build on, with the exception of CLHT, which uses the MIT License. Accordingly, P-CLHT is under the MIT license (https://opensource.org/licenses/MIT). 
+
 ## Contact
 
 Please contact us at `sklee@cs.utexas.edu` and `vijayc@utexas.edu` with any questions.
