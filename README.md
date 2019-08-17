@@ -100,7 +100,7 @@ $ make generate_workload
 ### Build & Run
 Build CLHT
 ```
-$ cd ./CLHT
+$ cd ./P-CLHT
 $ bash compile.sh lb
 $ cd ..
 ```

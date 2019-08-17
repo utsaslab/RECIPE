@@ -22,13 +22,12 @@ add_definitions(-DCLFLUSH)
 
 if (HOT)
 add_definitions(-DHOT)
-#add_subdirectory(HOT)
 include_directories(P-HOT/libs/hot/commons/include P-HOT/libs/hot/rowex/include
     P-HOT/libs/idx/benchmark-helpers/include P-HOT/libs/idx/map-helpers/include
     P-HOT/libs/idx/content-helpers/include P-HOT/libs/idx/utils/include P-HOT/libs/profile-lib/include)
 endif()
 
-include_directories(CCEH)
+include_directories(third-party/CCEH)
 include_directories(P-Masstree)
 include_directories(P-CLHT/include P-CLHT/external/include)
 include_directories(P-BwTree)
@@ -38,21 +37,21 @@ find_library(TbbLib tbb)
 find_package (Threads)
 
 if (HOT)
-set(ART_FILES P-ART/Tree.cpp FAST_FAIR/btree.h
-    P-HOT/libs/hot/rowex/include/hot/rowex/HOTRowex.hpp CCEH/src/CCEH_MSB.cpp
-    CCEH/src/Level_hashing.cpp P-BwTree/src/bwtree.cpp)
+set(INDEX_FILES P-ART/Tree.cpp third-party/FAST_FAIR/btree.h
+    P-HOT/libs/hot/rowex/include/hot/rowex/HOTRowex.hpp third-party/CCEH/src/CCEH_MSB.cpp
+    third-party/CCEH/src/Level_hashing.cpp P-BwTree/src/bwtree.cpp)
 else()
-set(ART_FILES P-ART/Tree.cpp FAST_FAIR/btree.h CCEH/src/CCEH_MSB.cpp
-    CCEH/src/Level_hashing.cpp P-BwTree/src/bwtree.cpp
+set(INDEX_FILES P-ART/Tree.cpp third-party/FAST_FAIR/btree.h third-party/CCEH/src/CCEH_MSB.cpp
+    third-party/CCEH/src/Level_hashing.cpp P-BwTree/src/bwtree.cpp
     P-BwTree/test/test_suite.cpp)
 endif()
 
-add_library(ARTSynchronized ${ART_FILES})
-target_link_libraries(ARTSynchronized ${TbbLib} ${JemallocLib}
+add_library(Indexes ${INDEX_FILES})
+target_link_libraries(Indexes ${TbbLib} ${JemallocLib}
     ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_SOURCE_DIR}/P-CLHT/libclht.a
     ${CMAKE_SOURCE_DIR}/P-CLHT/external/lib/libssmem.a)
 
 set(YCSB_TEST ycsb.cpp)
 add_executable(ycsb ${YCSB_TEST})
 
-target_link_libraries(ycsb ARTSynchronized atomic boost_system boost_thread)
+target_link_libraries(ycsb Indexes atomic boost_system boost_thread)

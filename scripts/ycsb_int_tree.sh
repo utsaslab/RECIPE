@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd ./CLHT
+cd ./P-CLHT
 bash compile.sh lb
 cd ..
 mkdir ./build

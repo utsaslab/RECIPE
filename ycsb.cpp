@@ -11,9 +11,9 @@
 using namespace std;
 
 #include "P-ART/Tree.h"
-#include "FAST_FAIR/btree.h"
-#include "CCEH/src/Level_hashing.h"
-#include "CCEH/src/CCEH.h"
+#include "third-party/FAST_FAIR/btree.h"
+#include "third-party/CCEH/src/Level_hashing.h"
+#include "third-party/CCEH/src/CCEH.h"
 #include "masstree.h"
 #include "P-BwTree/src/bwtree.h"
 #include "clht.h"

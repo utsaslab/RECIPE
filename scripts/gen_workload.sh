@@ -15,7 +15,7 @@ cd ..
 
 mkdir ./results
 
-cd ./CLHT
+cd ./P-CLHT
 bash compile.sh lb
 cd ..
 mkdir ./build
