@@ -130,7 +130,8 @@ $ make
 ```
 Run
 ```
-$ ./ycsb art a randint uniform 4
+$ cd ${project root directory}
+$ ./build/ycsb art a randint uniform 4
 Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access pattern] [number of threads]
        1. index type: art hot bwtree masstree clht
                       fastfair levelhash cceh
