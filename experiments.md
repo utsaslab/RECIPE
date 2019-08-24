@@ -39,3 +39,9 @@ We evaluate `P-CLHT` against two persistent hash tables, `CCEH` and `Level hashi
 ```
 bash scripts/ycsb_int_hash.sh
 ```
+
+#### WOART
+In this section, we will evaluate the performance of WOART with YCSB workload (A, B, C) where the random integer and string keys are used. Note that we exclude Workload E from this evaluation because the open-source WOART does not provide the implementation for range scan. In order to run experiments, please run below script. It will compile codes, run experiments, and store the results to `results/ycsb_int_tree.csv` and `results/ycsb_str_tree.csv`. WOART showed 2-20X lower performance than P-ART on Optane-DC Persistent Memory. This trend should be similar even on DRAM environment.
+```
+bash scripts/ycsb_woart.sh
+```
