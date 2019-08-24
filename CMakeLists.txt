@@ -20,6 +20,11 @@ add_definitions(-DCLFLUSH)
 #add_definitions(-DCLFLUSH_OPT)
 #add_definitions(-DCLWB)
 
+OPTION(DEFINE_MACRO "Option description" OFF) # Disabled by default
+if(DEFINE_MACRO)
+    add_definitions(-DSTRING_TYPE)
+endif(DEFINE_MACRO)
+
 if (HOT)
 add_definitions(-DHOT)
 include_directories(P-HOT/libs/hot/commons/include P-HOT/libs/hot/rowex/include
