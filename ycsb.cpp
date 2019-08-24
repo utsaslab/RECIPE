@@ -14,6 +14,7 @@ using namespace std;
 #include "third-party/FAST_FAIR/btree.h"
 #include "third-party/CCEH/src/Level_hashing.h"
 #include "third-party/CCEH/src/CCEH.h"
+#include "third-party/WOART/woart.h"
 #include "masstree.h"
 #include "P-BwTree/src/bwtree.h"
 #include "clht.h"
@@ -37,6 +38,7 @@ enum {
     TYPE_FASTFAIR,
     TYPE_LEVELHASH,
     TYPE_CCEH,
+    TYPE_WOART,
 };
 
 enum {
@@ -559,6 +561,48 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
         }
+    } else if (index_type == TYPE_WOART) {
+#ifdef STRING_TYPE
+        woart_tree *t = (woart_tree *)malloc(sizeof(woart_tree));
+        woart_tree_init(t);
+
+        {
+            // Load
+            auto starttime = std::chrono::system_clock::now();
+            tbb::parallel_for(tbb::blocked_range<uint64_t>(0, LOAD_SIZE), [&](const tbb::blocked_range<uint64_t> &scope) {
+                for (uint64_t i = scope.begin(); i != scope.end(); i++) {
+                    woart_insert(t, init_keys[i]->fkey, init_keys[i]->key_len, &init_keys[i]->value);
+                }
+            });
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::system_clock::now() - starttime);
+            printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
+        }
+
+        {
+            // Run
+            auto starttime = std::chrono::system_clock::now();
+            tbb::parallel_for(tbb::blocked_range<uint64_t>(0, RUN_SIZE), [&](const tbb::blocked_range<uint64_t> &scope) {
+                for (uint64_t i = scope.begin(); i != scope.end(); i++) {
+                    if (ops[i] == OP_INSERT) {
+                        woart_insert(t, keys[i]->fkey, keys[i]->key_len, &keys[i]->value);
+                    } else if (ops[i] == OP_READ) {
+                        uint64_t *ret = reinterpret_cast<uint64_t *> (woart_search(t, keys[i]->fkey, keys[i]->key_len));
+                        if (*ret != keys[i]->value) {
+                            printf("[WOART] search key = %lu, search value = %lu\n", keys[i]->value, *ret);
+                            exit(1);
+                        }
+                    } else if (ops[i] == OP_SCAN) {
+                        unsigned long buf[200];
+                        woart_scan(t, keys[i]->fkey, keys[i]->key_len, ranges[i], buf);
+                    }
+                }
+            });
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::system_clock::now() - starttime);
+            printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
+        }
+#endif
     }
 }
 
@@ -1088,6 +1132,48 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                     std::chrono::system_clock::now() - starttime);
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
         }
+    } else if (index_type == TYPE_WOART) {
+#ifndef STRING_TYPE
+        woart_tree *t = (woart_tree *)malloc(sizeof(woart_tree));
+        woart_tree_init(t);
+
+        {
+            // Load
+            auto starttime = std::chrono::system_clock::now();
+            tbb::parallel_for(tbb::blocked_range<uint64_t>(0, LOAD_SIZE), [&](const tbb::blocked_range<uint64_t> &scope) {
+                for (uint64_t i = scope.begin(); i != scope.end(); i++) {
+                    woart_insert(t, init_keys[i], sizeof(uint64_t), &init_keys[i]);
+                }
+            });
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::system_clock::now() - starttime);
+            printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
+        }
+
+        {
+            // Run
+            auto starttime = std::chrono::system_clock::now();
+            tbb::parallel_for(tbb::blocked_range<uint64_t>(0, RUN_SIZE), [&](const tbb::blocked_range<uint64_t> &scope) {
+                for (uint64_t i = scope.begin(); i != scope.end(); i++) {
+                    if (ops[i] == OP_INSERT) {
+                        woart_insert(t, keys[i], sizeof(uint64_t), &keys[i]);
+                    } else if (ops[i] == OP_READ) {
+                        uint64_t *ret = reinterpret_cast<uint64_t *> (woart_search(t, keys[i], sizeof(uint64_t)));
+                        if (*ret != keys[i]) {
+                            printf("[WOART] expected = %lu, search value = %lu\n", keys[i], *ret);
+                            exit(1);
+                        }
+                    } else if (ops[i] == OP_SCAN) {
+                        unsigned long buf[200];
+                        woart_scan(t, keys[i], ranges[i], buf);
+                    }
+                }
+            });
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::system_clock::now() - starttime);
+            printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
+        }
+#endif
     }
 }
 
@@ -1095,7 +1181,7 @@ int main(int argc, char **argv) {
     if (argc != 6) {
         std::cout << "Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access pattern] [number of threads]\n";
         std::cout << "1. index type: art hot bwtree masstree clht\n";
-        std::cout << "               fastfair levelhash cceh\n";
+        std::cout << "               fastfair levelhash cceh woart\n";
         std::cout << "2. ycsb workload type: a, b, c, e\n";
         std::cout << "3. key distribution: randint, string\n";
         std::cout << "4. access pattern: uniform, zipfian\n";
@@ -1126,6 +1212,8 @@ int main(int argc, char **argv) {
         index_type = TYPE_LEVELHASH;
     else if (strcmp(argv[1], "cceh") == 0)
         index_type = TYPE_CCEH;
+    else if (strcmp(argv[1], "woart") == 0)
+        index_type = TYPE_WOART;
     else {
         fprintf(stderr, "Unknown index type: %s\n", argv[1]);
         exit(1);
