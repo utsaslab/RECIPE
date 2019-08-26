@@ -1,0 +1,112 @@
+cmake_minimum_required(VERSION 2.8)
+project(ARTSynchronized)
+
+if( NOT CMAKE_BUILD_TYPE )
+    message(STATUS "No build type selected, default to Release")
+    set( CMAKE_BUILD_TYPE Release)
+else()
+    message(STATUS "Build type is set to ${CMAKE_BUILD_TYPE}")
+endif()
+
+set(HOT TRUE)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -mrtm -mcx16 -mavx -mavx2 -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
+
+#add_definitions(-DPERF_PROFILE)
+#add_definitions(-DWRITE_LATENCY)
+#add_definitions(-DPINCNT)
+
+add_definitions(-DBWTREE_NODEBUG)
+
+#add_definitions(-DSTRING_TYPE)
+
+#Crash tests related
+#add_definitions(-DLOCK_INIT)
+
+#ART Crash test related
+#add_definitions(-DCRASH_SPLIT)
+#add_definitions(-DCRASH_MERGE)
+#add_definitions(-DARTDEBUG)
+
+#CLHT Crash test related. Note: These can't be enabled here
+# Please enable them in CLHT/clht_lb_res.c
+#add_definitions(-DCRASH_AFTER_SWAP_CLHT)
+#add_definitions(-DCLHTDEBUG)
+
+#MASSTREE Crash Test related
+#add_definitions(-DMASSTREEDEBUG)
+#add_definitions(-DCRASH_AFTER_SPLIT_1)
+#add_definitions(-DCRASH_AFTER_SPLIT_2)
+#add_definitions(-DCRASH_AFTER_SPLIT_INNER_1)
+#add_definitions(-DCRASH_AFTER_SPLIT_INNER_2)
+#add_definitions(-DCRASH_AFTER_MERGE_1)
+#add_definitions(-DCRASH_AFTER_MERGE_INNER_1)
+
+#CCEH Crash test methods
+#add_definitions(-DCCEHDEBUG)
+#add_definitions(-DCRASH_AFTER_DD_STEP_1)
+#add_definitions(-DCRASH_AFTER_DD_STEP_2)
+#add_definitions(-DCRASH_AFTER_DD_STEP_3)
+
+#HOT Crash test related
+#add_definitions(-DHOTDEBUG)
+#add_definitions(-DCRASH_STEP_1)
+#add_definitions(-DCRASH_STEP_2a)
+#add_definitions(-DCRASH_STEP_2b)
+#add_definitions(-DCRASH_STEP_2c)
+#add_definitions(-DCRASH_STEP_2d)
+#add_definitions(-DCRASH_STEP_2e)
+
+## Instruction options for Cache line flush (only support CLWB now)
+add_definitions(-DCLFLUSH)
+#add_definitions(-DCLFLUSH_OPT)
+#add_definitions(-DCLWB)
+
+if (HOT)
+add_definitions(-DHOT)
+#add_subdirectory(HOT)
+include_directories(HOT/libs/hot/single-threaded/include HOT/libs/hot/commons/include HOT/libs/hot/rowex/include HOT/libs/idx/benchmark-helpers/include HOT/libs/idx/map-helpers/include HOT/libs/idx/content-helpers/include HOT/libs/idx/utils/include HOT/libs/profile-lib/include)
+endif()
+
+include_directories(CCEH)
+include_directories(masstree)
+include_directories(CLHT/include CLHT/external/include)
+include_directories(Bwtree)
+
+find_library(JemallocLib jemalloc)
+find_library(TbbLib tbb)
+find_package (Threads)
+
+if (HOT)
+set(ART_FILES ROWEX/Tree.cpp FAST_FAIR/btree.h
+    HOT/libs/hot/rowex/include/hot/rowex/HOTRowex.hpp CCEH/src/CCEH_MSB.cpp
+    CCEH/src/Level_hashing.cpp Bwtree/src/bwtree.cpp WORT/wort.cpp
+    WOART/woart.cpp wbtree/wbtree.cpp fptree/FPTree.cpp)
+else()
+set(ART_FILES ROWEX/Tree.cpp FAST_FAIR/btree.h CCEH/src/CCEH_MSB.cpp
+    CCEH/src/Level_hashing.cpp Bwtree/src/bwtree.cpp Bwtree/test/test_suite.cpp WORT/wort.cpp
+    WOART/woart.cpp wbtree/wbtree.cpp fptree/FPTree.cpp)
+endif()
+
+add_library(ARTSynchronized ${ART_FILES})
+target_link_libraries(ARTSynchronized ${TbbLib} ${JemallocLib} ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_SOURCE_DIR}/CLHT/libclht.a ${CMAKE_SOURCE_DIR}/CLHT/external/lib/libssmem.a)
+
+set(YCSB_TEST ycsb.cpp)
+add_executable(ycsb ${YCSB_TEST})
+
+#set(BASIC_TEST example.cpp)
+#add_executable(example ${BASIC_TEST})
+
+set(CRASH_TEST crash_test.cpp)
+add_executable(crash ${CRASH_TEST})
+
+if (HOT)
+#target_link_libraries(ycsb ARTSynchronized hot-rowex-lib benchmark-helpers-lib content-helpers-lib atomic boost_system boost_thread)
+target_link_libraries(ycsb ARTSynchronized atomic boost_system boost_thread)
+#target_link_libraries(example ARTSynchronized hot-rowex-lib benchmark-helpers-lib content-helpers-lib atomic boost_system boost_thread)
+target_link_libraries(crash ARTSynchronized  atomic boost_system boost_thread)
+else()
+target_link_libraries(ycsb ARTSynchronized atomic boost_system boost_thread)
+#target_link_libraries(example ARTSynchronized atomic boost_system boost_thread)
+target_link_libraries(crash ARTSynchronized atomic boost_system boost_thread)
+endif()

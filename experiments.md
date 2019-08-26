@@ -40,8 +40,26 @@ We evaluate `P-CLHT` against two persistent hash tables, `CCEH` and `Level hashi
 bash scripts/ycsb_int_hash.sh
 ```
 
-#### WOART
+## WOART
 In this section, we will evaluate the performance of WOART with YCSB workload (A, B, C) where the random integer and string keys are used. Note that we exclude Workload E from this evaluation because the open-source WOART does not provide the implementation for range scan. In order to run experiments, please run below script. It will compile codes, run experiments, and store the results to `results/ycsb_int_tree.csv` and `results/ycsb_str_tree.csv`. WOART showed 2-20X lower performance than P-ART on Optane-DC Persistent Memory. This trend should be similar even on DRAM environment.
 ```
 bash scripts/ycsb_woart.sh
+```
+
+## Crash Test
+In this section, we will do crash tests for the concurrent indexes including state-of-art PM indexes (`FAST&FAIR` and `CCEH`) and RECIPE-converted indexes (`P-ART`, `P-HOT`, `P-BwTree`, and `P-Masstree`). We test each index for 10K crash states. We load 10K entries into the index, allowing it to crash probabilistically. We then perform a mixed workload consisting of a total of 10K inserts and reads into the index using 16 concurrent threads. Finally, we read back all successfully inserted keys from the index. For testing, please execute following script. This script will compile source codes, execute our crash tests for each index. This script also will show the overall results of testing in prompt messages, while the detailed results are stored in `CrashTest/results` directory.
+
+- Testing for ordered indexes
+
+```
+cd CrashTest
+./mt_crash_test.sh ordered string
+
+```
+
+- Testing for unordered indexes
+
+```
+cd CrashTest
+./mt_crash_test.sh unordered randint
 ```

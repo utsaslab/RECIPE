@@ -1,0 +1,36 @@
+language: cpp
+matrix:
+  include:
+    # works on Precise and Trusty
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+            - george-edison55-precise-backports
+          packages:
+            - g++-7
+            - cmake-data
+            - cmake
+            - lcov
+            - libtcmalloc-minimal4
+            - libtcmalloc-minimal4-dbg
+            - libgoogle-perftools-dev
+      env:
+        - COMPILER=g++-7
+        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7 && GCOV=gcov-7"
+
+before_install:
+    - eval "${MATRIX_EVAL}"
+
+install:
+  - sudo update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-7 90
+  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-7 90
+  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 90
+
+compiler:
+  - gcc
+script:
+  ./runTests.sh -DUSETRAVIS=ON
+after_success:
+  - bash <(curl -s https://codecov.io/bash) -f coverageReport/libraries_coverage.info

@@ -4,6 +4,8 @@ results/
 index-microbench/workloads
 index-microbench/ycsb-0.11.0.tar.gz
 index-microbench/YCSB
+CrashTest/build
+CrashTest/results
 tags
 cscope.out
 cscope.files

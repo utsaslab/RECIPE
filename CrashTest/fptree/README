@@ -1,0 +1,9 @@
+Required libraries:
+- Intel-tbb
+  https://github.com/01org/tbb
+  
+- Quartz  
+  https://github.com/HewlettPackard/quartz
+
+
+See Makefile and set related paths after installing those libraries.
