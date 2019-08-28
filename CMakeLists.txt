@@ -61,3 +61,9 @@ set(YCSB_TEST ycsb.cpp)
 add_executable(ycsb ${YCSB_TEST})
 
 target_link_libraries(ycsb Indexes atomic boost_system boost_thread)
+
+add_subdirectory(P-ART)
+add_subdirectory(P-Masstree)
+add_subdirectory(P-HOT)
+add_subdirectory(P-BwTree)
+add_subdirectory(P-CLHT)

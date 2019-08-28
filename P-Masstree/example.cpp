@@ -5,20 +5,13 @@
 
 using namespace std;
 
-#include "Tree.h"
-
-void loadKey(TID tid, Key &key) {
-    return ;
-}
+#include "masstree.h"
 
 void multithreaded(char **argv) {
-    std::cout << "multi threaded: P-ART" << std::endl;
+    std::cout << "multi threaded: P-Masstree" << std::endl;
 
     uint64_t n = std::atoll(argv[1]);
     uint64_t *keys = new uint64_t[n];
-    std::vector<Key *> Keys;
-
-    Keys.reserve(n);
 
     // Generate keys
     for (uint64_t i = 0; i < n; i++) {
@@ -43,15 +36,15 @@ void multithreaded(char **argv) {
     tbb::task_scheduler_init init(num_thread);
 
     printf("operation,n,ops/s\n");
-    ART_ROWEX::Tree tree(loadKey);
+    masstree::leafnode *init_root = new masstree::leafnode(0);
+    masstree::masstree *tree = new masstree::masstree(init_root);
+
     {
         // Build tree
         auto starttime = std::chrono::system_clock::now();
         tbb::parallel_for(tbb::blocked_range<uint64_t>(0, n), [&](const tbb::blocked_range<uint64_t> &range) {
-            auto t = tree.getThreadInfo();
             for (uint64_t i = range.begin(); i != range.end(); i++) {
-                Keys[i] = Keys[i]->make_leaf(keys[i], sizeof(uint64_t), keys[i]);
-                tree.insert(Keys[i], t);
+                tree->put(keys[i], &keys[i]);
             }
         });
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -64,11 +57,10 @@ void multithreaded(char **argv) {
         // Lookup
         auto starttime = std::chrono::system_clock::now();
         tbb::parallel_for(tbb::blocked_range<uint64_t>(0, n), [&](const tbb::blocked_range<uint64_t> &range) {
-            auto t = tree.getThreadInfo();
             for (uint64_t i = range.begin(); i != range.end(); i++) {
-                uint64_t *val = reinterpret_cast<uint64_t *> (tree.lookup(Keys[i], t));
-                if (*val != keys[i]) {
-                    std::cout << "wrong value read: " << *val << " expected:" << keys[i] << std::endl;
+                uint64_t *ret = reinterpret_cast<uint64_t *> (tree->get(keys[i]));
+                if (*ret != keys[i]) {
+                    std::cout << "wrong value read: " << *ret << " expected:" << keys[i] << std::endl;
                     throw;
                 }
             }
