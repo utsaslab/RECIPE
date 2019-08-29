@@ -24,32 +24,18 @@ class IntKeyExtractor {
     }
 };
 
-void multithreaded(char **argv) {
-    std::cout << "multi threaded: P-HOT" << std::endl;
+void run(char **argv) {
+    std::cout << "Simple Example of P-HOT" << std::endl;
 
     uint64_t n = std::atoll(argv[1]);
     uint64_t *keys = new uint64_t[n];
 
     // Generate keys
     for (uint64_t i = 0; i < n; i++) {
-        // dense, sorted
         keys[i] = i + 1;
     }
 
-    if (atoi(argv[2]) == 1) {
-        // dense, random
-        std::random_shuffle(keys, keys + n);
-    }
-
-    if (atoi(argv[2]) == 2) {
-        // "pseudo-sparse" (the most-significant leaf bit gets lost)
-        std::default_random_engine generator;
-        std::uniform_int_distribution<uint64_t> distribution(0, ((UINT64_MAX) ^ (1UL << 63)));
-        for (uint64_t i = 0; i < n; i++)
-            keys[i] = distribution(generator);
-    }
-
-    int num_thread = atoi(argv[3]);
+    int num_thread = atoi(argv[2]);
     tbb::task_scheduler_init init(num_thread);
 
     printf("operation,n,ops/s\n");
@@ -99,11 +85,11 @@ void multithreaded(char **argv) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 4) {
-        printf("usage: %s n 0|1|2 nthreads\nn: number of keys\n0: sorted keys\n1: dense keys\n2: sparse keys\nnthreads: number of threads\n", argv[0]);
+    if (argc != 3) {
+        printf("usage: %s n nthreads\nn: number of keys\nnthreads: number of threads\n", argv[0]);
         return 1;
     }
 
-    multithreaded(argv);
+    run(argv);
     return 0;
 }
