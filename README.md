@@ -19,6 +19,14 @@ Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram.
 5. `P-Masstree/` contains the source code for P-Masstree. It is converted from Masstree to be persistent and is custumized for the compact version. The original source code and paper can be found in [code](https://github.com/kohler/masstree-beta) and [paper](https://dl.acm.org/citation.cfm?id=2168855).
 6. `index-microbench/` contains the benchmark framework to generate YCSB workloads. The original source code can be found in [code](https://github.com/wangziqi2016/index-microbench).
 
+## Integrating RECIPE indexes into your own project
+
+### Usage
+Apart from benchmark code with `ycsb.cpp`, we provide simple example codes (`P-*/example.cpp` for each RECIPE index) 
+to help developers who want to apply RECIPE indexes into their own project to easily identify how to use each index's APIs. 
+These example source codes run insert and lookup operations with custom integer keys. For more details of usage for each index 
+including string key type, please refer to each index's directory and `ycsb.cpp` as well.
+
 ## Artifact Evaluation
 
 For artifact evaluation, we will evaluates again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in `Benchmark detail` below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
@@ -140,6 +148,13 @@ Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access patte
        4. access pattern: uniform, zipfian
        5. number of threads (integer)
 ```
+
+## Limitations
+Current implementations are based on general volatile memory allocation API such as `malloc`, `posix_memalign`, `new`, and etc.
+Just for performance testing on real PM, you can use [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html), 
+which transparently converts all the dynamic memory allocations into Persistent Memory allocations.
+However, if you want to apply RECIPE indexes into your real PM application, you would need to change current volatile 
+memory allocators using [libpmem](https://pmem.io/pmdk/) APIs.
 
 ## License
 
