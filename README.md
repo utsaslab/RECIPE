@@ -26,6 +26,8 @@ to help developers who want to apply RECIPE indexes into their own project to ea
 These example source codes run insert and lookup operations with custom integer keys. For more details of usage for each index 
 including string key type, please refer to `README.md` in each index's directory and `ycsb.cpp` as well.
 
+### Recommended use cases
+
 ## Artifact Evaluation
 
 For artifact evaluation, we will evaluates again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in `Benchmark detail` below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
