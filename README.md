@@ -1,11 +1,11 @@
-## RECIPE: Reusing Concurrent In-Memory Indexes for Persistent Memory (SOSP 2019)
+## RECIPE : Converting Concurrent DRAM Indexes to Persistent-Memory Indexes (SOSP 2019)
 
 RECIPE proposes a principled approach for converting concurrent indexes built for DRAM into crash-consistent indexes for persistent memory. This repository includes the implementations of the index structures for persistent memory converted from the existing concurrent DRAM indexes by following RECIPE. For performance evaluations, this repository also provides the microbenchmarks for index structures based on YCSB.
 
 
 Please cite the following paper if you use the RECIPE approach or RECIPE-converted indexes: 
 
-**RECIPE : Reusing Concurrent In-Memory Indexes for Persistent Memory**.
+**RECIPE : Converting Concurrent DRAM Indexes to Persistent-Memory Indexes**.
 Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram. 
 *Proceedings of the The 27th ACM Symposium on Operating Systems Principles (SOSP 19)*. 
 [Bibtex](https://www.cs.utexas.edu/~vijay/bibtex/sosp19-recipe.bib).
