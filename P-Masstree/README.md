@@ -5,7 +5,9 @@ concatenation of B+Tree nodes. The implementation of `P-Masstree` is based on th
 with the same structure of leaf nodes. Compared with original Masstree, `P-Masstree` has some limitations in providing various functionalities; for example, 
 differently from original Masstree, `P-Masstree` does not support storing duplicated keys. `P-Masstree` is an ordered index supporting both point and range queries. 
 
-**Conversion**. 
+**Conversion**. In order to apply RECIPE approach to Masstree, we first modify the B+tree structure of original Masstree to be B-link tree by extending leaf node 
+structures across all levels. After this, Masstree is converted into `P-Masstree` by adding crash detection using `try lock` and recovery mechanisms reusing node split 
+algorithms, along with cache line flushes and memory fences.
 
 **Performance**. Compared with [FAST&FAIR](https://www.usenix.org/conference/fast18/presentation/hwang) that is a state-of-the-art ordered index, 
 `P-Masstree` shows **1.51x**, **1.34x**, **1.06x** better performance in YCSB Load and workload A, B respectively using random integer keys while 
