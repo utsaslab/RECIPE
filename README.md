@@ -23,10 +23,16 @@ Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram.
 
 Apart from benchmark code with `ycsb.cpp`, we provide simple example codes (`P-*/example.cpp` for each RECIPE index) 
 to help developers who want to apply RECIPE indexes into their own project to easily identify how to use each index's APIs. 
-These example source codes run insert and lookup operations with custom integer keys. For more details of usage for each index 
-including string key type, please refer to `README.md` in each index's directory and `ycsb.cpp` as well.
+These example source codes run insert and lookup operations with custom integer keys. For more details of usage for each index, 
+please refer to `P-*/README.md` in each index's directory and `ycsb.cpp` as well.
 
 ### Recommended use cases
+
+1. `P-CLHT` is appropriate to be used for the applications requiring the superior performance of point queries.
+2. `P-HOT` is useful to be employed for the applications consisting of read-dominated workloads.
+3. `P-BwTree` provides the well-balanced performance of insertion, lookup, and range scan operations for the applications using integer-type keys.
+4. `P-ART` is suitable to be used for the applications using intertion-dominated workloads while also requiring a small portion of range queries.
+5. `P-Masstree` provides the well-balanced performance of insertion, lookup, and range scan operations for the applications employing either integer or string keys.
 
 ## Artifact Evaluation
 

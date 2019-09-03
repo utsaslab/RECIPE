@@ -11,6 +11,8 @@ line flushes and memory fences after each critical volatile store.
 state-of-the-art unordered index, `P-CLHT` shows **2.38x**, **1.35x**, and **1.25x** better performance in 
 YCSB workload A, B, C respectively using random integer keys while **0.37x** worse in Load workload.
 
+**Use Case**. `P-CLHT` provides the superior performance of insertion and point lookup, even if not supporting
+range scans. Therefore, it would be appropriate to be used for the applications only consisting of point queries.
 
 ## Build & Run
 
