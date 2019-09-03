@@ -22,8 +22,8 @@ find_library(TbbLib tbb)
 find_package (Threads)
 
 set(P_CLHT_TEST example.cpp)
-add_executable(p_clht_example ${P_CLHT_TEST})
+add_executable(example ${P_CLHT_TEST})
 
-target_link_libraries(p_clht_example ${TbbLib} ${JemallocLib}
+target_link_libraries(example ${TbbLib} ${JemallocLib}
     ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_SOURCE_DIR}/libclht.a
     ${CMAKE_SOURCE_DIR}/external/lib/libssmem.a atomic boost_system boost_thread)

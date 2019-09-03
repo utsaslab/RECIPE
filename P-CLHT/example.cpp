@@ -107,7 +107,7 @@ void run(char **argv) {
 
 int main(int argc, char **argv) {
     if (argc != 3) {
-        printf("usage: %s n nthreads\nn: number of keys\nnthreads: number of threads\n", argv[0]);
+        printf("usage: %s [n] [nthreads]\nn: number of keys (integer)\nnthreads: number of threads (integer)\n", argv[0]);
         return 1;
     }
 

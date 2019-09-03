@@ -19,6 +19,6 @@ find_library(JemallocLib jemalloc)
 find_library(TbbLib tbb)
 
 set(P_MASS_TEST example.cpp)
-add_executable(p_mass_example ${P_MASS_TEST})
+add_executable(example ${P_MASS_TEST})
 
-target_link_libraries(p_mass_example ${JemallocLib} ${TbbLib} atomic boost_system boost_thread)
+target_link_libraries(example ${JemallocLib} ${TbbLib} atomic boost_system boost_thread)

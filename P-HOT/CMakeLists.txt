@@ -24,6 +24,6 @@ find_library(TbbLib tbb)
 find_package (Threads)
 
 set(P_HOT_TEST example.cpp)
-add_executable(p_hot_example ${P_HOT_TEST})
+add_executable(example ${P_HOT_TEST})
 
-target_link_libraries(p_hot_example atomic boost_system boost_thread ${TbbLib} ${JemallocLib} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(example atomic boost_system boost_thread ${TbbLib} ${JemallocLib} ${CMAKE_THREAD_LIBS_INIT})
