@@ -11,6 +11,9 @@ prefix bits mapped by a node to maintain consistent high fanout. HOT is an order
 ordered index, `P-HOT` shows **1.4x**, **1.27x**, **1.34x**, and **1.49x** better performance in YCSB Load and workload A, B, C respectively
 using random integer keys while **0.70x** worse in workload E.
 
+**Support**. Insert, Delete, Update, Point Lookup, and Range Scan
+operations. Works for both integer and string keys.
+
 **Use Case**. `P-HOT` would be useful to be employed for the applications consisting of read-dominated workloads mixed with point and range queries.
 `P-HOT` would not be suitable for insertion-dominated workloads as it requires excessive cache line flushes for persistency due to copy-on-write scheme.
 

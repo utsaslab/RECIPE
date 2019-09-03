@@ -12,6 +12,9 @@ BwTree is an ordered index supporting both point and range queries.
 `P-BwTree` shows similar performance to `FAST&FAIR` in all YCSB workloads using random integer keys (**1.13x**, **1.04x**, **0.93x**, **0.92x** 
 and **0.92x** performance in Load and workload A, B, C, E respectively).
 
+**Support**. Insert, Update, Delete, Point Lookup, and Range
+Scan operations. Works for both integer and string keys.
+
 **Use case**. `P-BwTree` can provide the well-balanced performance of insertion, lookup, and range scan operations in workloads using integer keys.
 However, it is not suitable to be applied for the application employing string keys due to the inefficiencies caused by the overhead of string 
 comparison and additional pointer dereferences.

@@ -13,6 +13,8 @@ algorithms, along with cache line flushes and memory fences.
 `P-Masstree` shows **1.51x**, **1.34x**, **1.06x** better performance in YCSB Load and workload A, B respectively using random integer keys while 
 similar in workload C and **0.75x** worse in workload E.
 
+**Support**. Insert, Update, Delete, Point Lookup, and Range Scan operations. Works for both integer and string keys.
+
 **Use Case**. `P-Masstree` provides the well-balanced performance of insertion, lookup, and range scan operations regardless of integer or string keys.
 `P-Masstree` would be suitable for the application using workloads consisting of variable length keys.
 

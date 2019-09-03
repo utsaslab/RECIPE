@@ -11,6 +11,8 @@ and recovery mechanisms, along with cache line flushes and memory fences.
 that is a state-of-the-art ordered index, `P-ART` shows **1.8x**, **1.6x**, **1.12x**, and **1.04x** better performance 
 in YCSB Load and workload A, B, C respectively using random integer keys while **0.54x** worse in workload E.
 
+**Support**. Insert, Delete, Point Lookup, and Range Scan operations. Works for both integer and string keys.
+
 **Use Case**. `P-ART` is highly optimized for insertion-dominated workloads since it requires the smallest number of
 cache line flushes among RECIPE-converted indexes for persistency. Therefore, `P-ART` is suitable to be applied for
 the applications using insertion-dominated workloads while also requiring a small portion of range scans.
