@@ -21,11 +21,10 @@ Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram.
 
 ## Integrating RECIPE indexes into your own project
 
-### Usage
 Apart from benchmark code with `ycsb.cpp`, we provide simple example codes (`P-*/example.cpp` for each RECIPE index) 
 to help developers who want to apply RECIPE indexes into their own project to easily identify how to use each index's APIs. 
 These example source codes run insert and lookup operations with custom integer keys. For more details of usage for each index 
-including string key type, please refer to each index's directory and `ycsb.cpp` as well.
+including string key type, please refer to `README.md` in each index's directory and `ycsb.cpp` as well.
 
 ## Artifact Evaluation
 
