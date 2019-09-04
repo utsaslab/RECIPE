@@ -20,7 +20,9 @@ add_definitions(-DCLFLUSH)
 #add_definitions(-DCLFLUSH_OPT)
 #add_definitions(-DCLWB)
 
-OPTION(WOART_STRING "Option description" OFF) # Disabled by default
+OPTION(PMEM_TEST "Option for enabling the tests on real PM" OFF) # Disabled by default
+
+OPTION(WOART_STRING "Option for enabling the string type support of WOART" OFF) # Disabled by default
 if(WOART_STRING)
     add_definitions(-DSTRING_TYPE)
 endif(WOART_STRING)
@@ -37,7 +39,9 @@ include_directories(P-Masstree)
 include_directories(P-CLHT/include P-CLHT/external/include)
 include_directories(P-BwTree)
 
+if(NOT PMEM_TEST)
 find_library(JemallocLib jemalloc)
+endif()
 find_library(TbbLib tbb)
 find_package (Threads)
 
@@ -53,9 +57,17 @@ set(INDEX_FILES P-ART/Tree.cpp third-party/FAST_FAIR/btree.h third-party/CCEH/sr
 endif()
 
 add_library(Indexes ${INDEX_FILES})
+
+if(NOT PMEM_TEST)
 target_link_libraries(Indexes ${TbbLib} ${JemallocLib}
     ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_SOURCE_DIR}/P-CLHT/libclht.a
     ${CMAKE_SOURCE_DIR}/P-CLHT/external/lib/libssmem.a)
+else()
+target_link_libraries(Indexes ${TbbLib} ${CMAKE_THREAD_LIBS_INIT}
+    ${CMAKE_SOURCE_DIR}/P-CLHT/libclht.a
+    ${CMAKE_SOURCE_DIR}/P-CLHT/external/lib/libssmem.a
+    ${CMAKE_SOURCE_DIR}/pmdk/src/jemalloc/lib/libjemalloc.so.2)
+endif()
 
 set(YCSB_TEST ycsb.cpp)
 add_executable(ycsb ${YCSB_TEST})

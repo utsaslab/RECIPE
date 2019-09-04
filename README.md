@@ -130,6 +130,56 @@ $ mkdir workloads
 $ make generate_workload
 ```
 
+### Configurations for PMEM (Optional)
+For evaluations on Intel Optane DC Persistent Memory, we will use 
+[libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html) to 
+transparently converts all dynamic memory allocations into Persistent Memory 
+allocations, mapped by pmem.
+
+Ext4-DAX mount
+```
+$ mkfs.ext4 -b 4096 -E stride=512 -F /dev/pmem0
+$ mount -o dax /dev/pmem0 /mnt/pmem
+```
+
+Install [PMDK](https://github.com/pmem/pmdk) & jemalloc provided in PMDK package
+```
+// Install PMDK
+$ git clone https://github.com/pmem/pmdk.git
+$ cd pmdk
+$ git checkout tags/1.6
+$ make -j
+
+// Install jemalloc
+$ cd src/jemalloc
+$ ./autogen.sh
+$ ./configure
+$ make -j
+$ cd ../../../
+```
+
+Configuration for [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)
+- LD_PRELOAD=path
+
+Specifies a path to libvmmalloc.so.1. The default indicates the path to libvmmalloc.so.1 that is built from the instructions installing PMDK above.
+
+- VMMALLOC_POOR_DIR=path
+
+Specifies a path to the directory where the memory pool file should be created. The directory must exist and be writable.
+
+- VMMALLOC_POOL_SIZE=len
+
+Defines the desired size (in bytes) of the memory pool file.
+```
+$ vi ./scripts/set_vmmalloc.sh
+
+Please change below configurations to fit for your environment.
+
+export LD_PRELOAD="./pmdk/src/nondebug/libvmmalloc.so.1"
+export VMMALLOC_POOL_SIZE=$((64*1024*1024*1024))
+export VMMALLOC_POOL_DIR="/mnt/pmem"
+```
+
 ### Build & Run
 Build P-CLHT
 ```
@@ -137,6 +187,8 @@ $ cd ./P-CLHT
 $ bash compile.sh lb
 $ cd ..
 ```
+
+#### DRAM environment
 Build all
 ```
 $ mkdir build
@@ -155,6 +207,22 @@ Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access patte
        3. key distribution: randint, string
        4. access pattern: uniform, zipfian
        5. number of threads (integer)
+```
+
+#### PM environment
+Build all
+```
+$ mkdir build
+$ cd build
+$ cmake -DPMEM_TEST=ON ..
+$ make
+```
+Run
+```
+$ cd ${project root directory}
+$ source ./scripts/set_vmmalloc.sh
+$ ./build/ycsb art a randint uniform 4
+$ source ./scripts/unset_vmmalloc.sh
 ```
 
 ## Limitations
