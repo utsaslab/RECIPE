@@ -121,9 +121,7 @@ Build all
 ```
 $ mkdir build
 $ cd build
-```
-**`$ cmake -DPMEM_TEST=ON ..`**
-```
+$ <b>cmake -DPMEM_TEST=ON ..</b>
 $ make
 ```
 Run
