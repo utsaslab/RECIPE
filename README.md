@@ -88,7 +88,9 @@ export VMMALLOC_POOL_DIR="/mnt/pmem"
 
 ### Building & Running on Persistent Memory and DRAM
 
-Build P-CLHT
+Please refer first to **Benchmark Details** section below to make sure the required dependencies.
+
+#### Build P-CLHT
 
 Because CLHT is based on C language, we first make static library and then separately link it to main project source.
 ```
@@ -120,19 +122,19 @@ Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access patte
 
 #### Persistent Memory environment
 Build all
-````
-`$ mkdir build`
-`$ cd build`
-**`$ cmake -DPMEM_TEST=ON ..`**
-`$ make`
-````
+<pre>
+$ mkdir build
+$ cd build
+<b>$ cmake -DPMEM_TEST=ON ..</b>
+$ make
+</pre>
 Run
-```
+<pre>
 $ cd ${project root directory}
-$ source ./scripts/set_vmmalloc.sh
+<b>$ source ./scripts/set_vmmalloc.sh</b>
 $ ./build/ycsb art a randint uniform 4
-$ source ./scripts/unset_vmmalloc.sh
-```
+<b>$ source ./scripts/unset_vmmalloc.sh</b>
+</pre>
 
 ## Artifact Evaluation
 
