@@ -49,20 +49,20 @@ $ mount -o dax /dev/pmem0 /mnt/pmem
 ```
 
 #### Install [PMDK](https://github.com/pmem/pmdk) & jemalloc provided in PMDK package
-```
-// Install PMDK
+<pre>
+<b>Install PMDK</b>
 $ git clone https://github.com/pmem/pmdk.git
 $ cd pmdk
 $ git checkout tags/1.6
 $ make -j
 
-// Install jemalloc
+<b>Install jemalloc</b>
 $ cd src/jemalloc
 $ ./autogen.sh
 $ ./configure
 $ make -j
 $ cd ../../../
-```
+</pre>
 
 #### Configuration for [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)
 - LD_PRELOAD=path
@@ -88,7 +88,7 @@ export VMMALLOC_POOL_DIR="/mnt/pmem"
 
 ### Building & Running on Persistent Memory and DRAM
 
-Please refer first to **Benchmark Details** section below to make sure the required dependencies.
+Please check first **Benchmark Details** section below to make sure the required dependencies.
 
 #### Build P-CLHT
 
