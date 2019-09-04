@@ -42,13 +42,13 @@ For running the indexes on Intel Optane DC Persistent Memory, we will use
 transparently converts all dynamic memory allocations into Persistent Memory 
 allocations, mapped by pmem.
 
-Ext4-DAX mount
+#### Ext4-DAX mount
 ```
 $ mkfs.ext4 -b 4096 -E stride=512 -F /dev/pmem0
 $ mount -o dax /dev/pmem0 /mnt/pmem
 ```
 
-Install [PMDK](https://github.com/pmem/pmdk) & jemalloc provided in PMDK package
+#### Install [PMDK](https://github.com/pmem/pmdk) & jemalloc provided in PMDK package
 ```
 // Install PMDK
 $ git clone https://github.com/pmem/pmdk.git
@@ -64,7 +64,7 @@ $ make -j
 $ cd ../../../
 ```
 
-Configuration for [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)
+#### Configuration for [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)
 - LD_PRELOAD=path
 
 Specifies a path to libvmmalloc.so.1. The default indicates the path to libvmmalloc.so.1 that is built from the instructions installing PMDK above.
@@ -121,7 +121,9 @@ Build all
 ```
 $ mkdir build
 $ cd build
-$ cmake -DPMEM_TEST=ON ..
+```
+**`$ cmake -DPMEM_TEST=ON ..`**
+```
 $ make
 ```
 Run
@@ -151,22 +153,22 @@ For artifact evaluation, we will evaluate again the performance of the index str
 - Compiler: g++-7, gcc-7, c++17
 
 ### Dependencies
-Install build packages
+#### Install build packages
 ```
-$ sudo apt-get install build-essential cmake libboost-all-dev libpapi-dev
+$ sudo apt-get install build-essential cmake libboost-all-dev libpapi-dev default-jdk
 ```
-Install jemalloc and tbb
+#### Install jemalloc and tbb
 ```
 $ sudo apt-get install libtbb-dev libjemalloc-dev
 ```
 
 ### Checklists
-Configuration for workload size.
+#### Configuration for workload size.
 - Change `LOAD_SIZE` and `RUN_SIZE` variables to be same with the generated workload size, which are hard-coded in `ycsb.cpp` (Default is 64000000).
 ```
 $ vi ycsb.cpp
 ```
-Configuration for cache line flush instruction.
+#### Configuration for cache line flush instruction.
 - Check supported cache line flush instructions. Current default configurations are based on `CLFLUSH` instruction to flush the dirty cache lines. If your CPU ISA supports `CLWB` or `CLFLUSHOPT`, please make sure to change the options in `./CMakeLists.txt` and `./CLHT/Makefile`. There are three options (clflush, clflushopt, clwb).
 ```
 $ lscpu | grep clflush
@@ -192,7 +194,7 @@ or
 - CFLAGS= -D_GNU_SOURCE -DCLWB
 ```
 
-Check if your machine supports AVX-2 and BMI-2.
+#### Check if your machine supports AVX-2 and BMI-2.
 ```
 $ lscpu | grep avx2
 $ lscpu | grep bmi2
@@ -206,14 +208,14 @@ set(HOT TRUE) --> set(HOT FALSE)
 ```
 
 ### Generating YCSB workloads
-Download YCSB source code
+#### Download YCSB source code
 ```
 $ cd ./index-microbench
 $ curl -O --location https://github.com/brianfrankcooper/YCSB/releases/download/0.11.0/ycsb-0.11.0.tar.gz
 $ tar xfvz ycsb-0.11.0.tar.gz
 $ mv ycsb-0.11.0 YCSB
 ```
-How to configure and generate workloads
+#### How to configure and generate workloads
 - Configure the options of each workloads (a, b, c, e), would only need to change `$recordcount` and `$operationcount`.
 ```
 $ vi ./index-microbench/workload_spec/<workloada or workloadb or workloadc or workloade>
@@ -227,101 +229,6 @@ $ vi ./index-microbench/generate_all_workloads.sh
 $ cd ./index-microbench/
 $ mkdir workloads
 $ make generate_workload
-```
-
-### Configurations for PMEM (Optional)
-For evaluations on Intel Optane DC Persistent Memory, we will use 
-[libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html) to 
-transparently converts all dynamic memory allocations into Persistent Memory 
-allocations, mapped by pmem.
-
-Ext4-DAX mount
-```
-$ mkfs.ext4 -b 4096 -E stride=512 -F /dev/pmem0
-$ mount -o dax /dev/pmem0 /mnt/pmem
-```
-
-Install [PMDK](https://github.com/pmem/pmdk) & jemalloc provided in PMDK package
-```
-// Install PMDK
-$ git clone https://github.com/pmem/pmdk.git
-$ cd pmdk
-$ git checkout tags/1.6
-$ make -j
-
-// Install jemalloc
-$ cd src/jemalloc
-$ ./autogen.sh
-$ ./configure
-$ make -j
-$ cd ../../../
-```
-
-Configuration for [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)
-- LD_PRELOAD=path
-
-Specifies a path to libvmmalloc.so.1. The default indicates the path to libvmmalloc.so.1 that is built from the instructions installing PMDK above.
-
-- VMMALLOC_POOR_DIR=path
-
-Specifies a path to the directory where the memory pool file should be created. The directory must exist and be writable.
-
-- VMMALLOC_POOL_SIZE=len
-
-Defines the desired size (in bytes) of the memory pool file.
-```
-$ vi ./scripts/set_vmmalloc.sh
-
-Please change below configurations to fit for your environment.
-
-export LD_PRELOAD="./pmdk/src/nondebug/libvmmalloc.so.1"
-export VMMALLOC_POOL_SIZE=$((64*1024*1024*1024))
-export VMMALLOC_POOL_DIR="/mnt/pmem"
-```
-
-### Build & Run
-Build P-CLHT
-```
-$ cd ./P-CLHT
-$ bash compile.sh lb
-$ cd ..
-```
-
-#### DRAM environment
-Build all
-```
-$ mkdir build
-$ cd build
-$ cmake ..
-$ make
-```
-Run
-```
-$ cd ${project root directory}
-$ ./build/ycsb art a randint uniform 4
-Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access pattern] [number of threads]
-       1. index type: art hot bwtree masstree clht
-                      fastfair levelhash cceh
-       2. ycsb workload type: a, b, c, e
-       3. key distribution: randint, string
-       4. access pattern: uniform, zipfian
-       5. number of threads (integer)
-```
-
-#### PM environment
-Build all
-```
-$ mkdir build
-$ cd build
-**$ cmake -DPMEM_TEST=ON ..**
-$ make
-```
-Run
-```
-$ cd ${project root directory}
-**$ source ./scripts/set_vmmalloc.sh**
-$ ./build/ycsb art a randint uniform 4
-**$ source ./scripts/unset_vmmalloc.sh**
 ```
 
 ## Limitations
