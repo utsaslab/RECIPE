@@ -214,15 +214,15 @@ Build all
 ```
 $ mkdir build
 $ cd build
-$ cmake -DPMEM_TEST=ON ..
+**$ cmake -DPMEM_TEST=ON ..**
 $ make
 ```
 Run
 ```
 $ cd ${project root directory}
-$ source ./scripts/set_vmmalloc.sh
+**$ source ./scripts/set_vmmalloc.sh**
 $ ./build/ycsb art a randint uniform 4
-$ source ./scripts/unset_vmmalloc.sh
+**$ source ./scripts/unset_vmmalloc.sh**
 ```
 
 ## Limitations
