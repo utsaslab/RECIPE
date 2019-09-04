@@ -33,6 +33,105 @@ please refer to `P-*/README.md` in each index's directory and `ycsb.cpp` as well
 4. `P-ART` is suitable for  applications with insertion-dominated workloads and a small number of range queries.
 5. `P-Masstree` provides well-balanced performance for insertion, lookup, and range scan operations for applications using either integer or string keys.
 
+## Running RECIPE Indexes on Persistent Memory and DRAM
+
+### Configurations for Persistent Memory 
+
+For running the indexes on Intel Optane DC Persistent Memory, we will use 
+[libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html) to 
+transparently converts all dynamic memory allocations into Persistent Memory 
+allocations, mapped by pmem.
+
+Ext4-DAX mount
+```
+$ mkfs.ext4 -b 4096 -E stride=512 -F /dev/pmem0
+$ mount -o dax /dev/pmem0 /mnt/pmem
+```
+
+Install [PMDK](https://github.com/pmem/pmdk) & jemalloc provided in PMDK package
+```
+// Install PMDK
+$ git clone https://github.com/pmem/pmdk.git
+$ cd pmdk
+$ git checkout tags/1.6
+$ make -j
+
+// Install jemalloc
+$ cd src/jemalloc
+$ ./autogen.sh
+$ ./configure
+$ make -j
+$ cd ../../../
+```
+
+Configuration for [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)
+- LD_PRELOAD=path
+
+Specifies a path to libvmmalloc.so.1. The default indicates the path to libvmmalloc.so.1 that is built from the instructions installing PMDK above.
+
+- VMMALLOC_POOR_DIR=path
+
+Specifies a path to the directory where the memory pool file should be created. The directory must exist and be writable.
+
+- VMMALLOC_POOL_SIZE=len
+
+Defines the desired size (in bytes) of the memory pool file.
+```
+$ vi ./scripts/set_vmmalloc.sh
+
+Please change below configurations to fit for your environment.
+
+export LD_PRELOAD="./pmdk/src/nondebug/libvmmalloc.so.1"
+export VMMALLOC_POOL_SIZE=$((64*1024*1024*1024))
+export VMMALLOC_POOL_DIR="/mnt/pmem"
+```
+
+### Building & Running on Persistent Memory and DRAM
+
+Build P-CLHT
+```
+$ cd ./P-CLHT
+$ bash compile.sh lb
+$ cd ..
+```
+
+#### DRAM environment
+Build all
+```
+$ mkdir build
+$ cd build
+$ cmake ..
+$ make
+```
+Run
+```
+$ cd ${project root directory}
+$ ./build/ycsb art a randint uniform 4
+Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access pattern] [number of threads]
+       1. index type: art hot bwtree masstree clht
+                      fastfair levelhash cceh
+       2. ycsb workload type: a, b, c, e
+       3. key distribution: randint, string
+       4. access pattern: uniform, zipfian
+       5. number of threads (integer)
+```
+
+#### Persistent Memory environment
+Build all
+```
+$ mkdir build
+$ cd build
+$ cmake -DPMEM_TEST=ON ..
+$ make
+```
+Run
+```
+$ cd ${project root directory}
+$ source ./scripts/set_vmmalloc.sh
+$ ./build/ycsb art a randint uniform 4
+$ source ./scripts/unset_vmmalloc.sh
+```
+
 ## Artifact Evaluation
 
 For artifact evaluation, we will evaluate again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in `Benchmark detail` below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
@@ -128,101 +227,6 @@ $ vi ./index-microbench/generate_all_workloads.sh
 $ cd ./index-microbench/
 $ mkdir workloads
 $ make generate_workload
-```
-
-### Configurations for PMEM (Optional)
-For evaluations on Intel Optane DC Persistent Memory, we will use 
-[libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html) to 
-transparently converts all dynamic memory allocations into Persistent Memory 
-allocations, mapped by pmem.
-
-Ext4-DAX mount
-```
-$ mkfs.ext4 -b 4096 -E stride=512 -F /dev/pmem0
-$ mount -o dax /dev/pmem0 /mnt/pmem
-```
-
-Install [PMDK](https://github.com/pmem/pmdk) & jemalloc provided in PMDK package
-```
-// Install PMDK
-$ git clone https://github.com/pmem/pmdk.git
-$ cd pmdk
-$ git checkout tags/1.6
-$ make -j
-
-// Install jemalloc
-$ cd src/jemalloc
-$ ./autogen.sh
-$ ./configure
-$ make -j
-$ cd ../../../
-```
-
-Configuration for [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)
-- LD_PRELOAD=path
-
-Specifies a path to libvmmalloc.so.1. The default indicates the path to libvmmalloc.so.1 that is built from the instructions installing PMDK above.
-
-- VMMALLOC_POOR_DIR=path
-
-Specifies a path to the directory where the memory pool file should be created. The directory must exist and be writable.
-
-- VMMALLOC_POOL_SIZE=len
-
-Defines the desired size (in bytes) of the memory pool file.
-```
-$ vi ./scripts/set_vmmalloc.sh
-
-Please change below configurations to fit for your environment.
-
-export LD_PRELOAD="./pmdk/src/nondebug/libvmmalloc.so.1"
-export VMMALLOC_POOL_SIZE=$((64*1024*1024*1024))
-export VMMALLOC_POOL_DIR="/mnt/pmem"
-```
-
-### Build & Run
-Build P-CLHT
-```
-$ cd ./P-CLHT
-$ bash compile.sh lb
-$ cd ..
-```
-
-#### DRAM environment
-Build all
-```
-$ mkdir build
-$ cd build
-$ cmake ..
-$ make
-```
-Run
-```
-$ cd ${project root directory}
-$ ./build/ycsb art a randint uniform 4
-Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access pattern] [number of threads]
-       1. index type: art hot bwtree masstree clht
-                      fastfair levelhash cceh
-       2. ycsb workload type: a, b, c, e
-       3. key distribution: randint, string
-       4. access pattern: uniform, zipfian
-       5. number of threads (integer)
-```
-
-#### PM environment
-Build all
-```
-$ mkdir build
-$ cd build
-$ cmake -DPMEM_TEST=ON ..
-$ make
-```
-Run
-```
-$ cd ${project root directory}
-$ source ./scripts/set_vmmalloc.sh
-$ ./build/ycsb art a randint uniform 4
-$ source ./scripts/unset_vmmalloc.sh
 ```
 
 ## Limitations
