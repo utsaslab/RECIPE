@@ -20,10 +20,10 @@ add_definitions(-DCLFLUSH)
 #add_definitions(-DCLFLUSH_OPT)
 #add_definitions(-DCLWB)
 
-OPTION(DEFINE_MACRO "Option description" OFF) # Disabled by default
-if(DEFINE_MACRO)
+OPTION(WOART_STRING "Option description" OFF) # Disabled by default
+if(WOART_STRING)
     add_definitions(-DSTRING_TYPE)
-endif(DEFINE_MACRO)
+endif(WOART_STRING)
 
 if (HOT)
 add_definitions(-DHOT)

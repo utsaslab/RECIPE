@@ -25,7 +25,7 @@ done
 
 cd ./build
 rm -rf *
-cmake -DDEFINE_MACRO=ON ..
+cmake -DWOART_STRING=ON ..
 make -j
 cd ..
 
