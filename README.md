@@ -1,14 +1,20 @@
 ## RECIPE : Converting Concurrent DRAM Indexes to Persistent-Memory Indexes (SOSP 2019)
 
-RECIPE proposes a principled approach for converting concurrent indexes built for DRAM into crash-consistent indexes for persistent memory. This repository includes the implementations of the index structures for persistent memory converted from the existing concurrent DRAM indexes by following RECIPE. For performance evaluations, this repository also provides the microbenchmarks for index structures based on YCSB.
-
+RECIPE proposes a principled approach for converting concurrent indexes built for DRAM into crash-consistent indexes for persistent memory. This repository includes the implementations of the index structures for persistent memory converted from the existing concurrent DRAM indexes by following RECIPE. For performance evaluations, this repository also provides the microbenchmarks for index structures based on YCSB. This repository contains all the information needed to reproduce the main results from our paper.
 
 Please cite the following paper if you use the RECIPE approach or RECIPE-converted indexes: 
 
 **RECIPE : Converting Concurrent DRAM Indexes to Persistent-Memory Indexes**.
 Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram. 
 *Proceedings of the The 27th ACM Symposium on Operating Systems Principles (SOSP 19)*. 
-[Bibtex](https://www.cs.utexas.edu/~vijay/bibtex/sosp19-recipe.bib).
+[Paper PDF](https://www.cs.utexas.edu/~vijay/papers/sosp19-splitfs.pdf). [Bibtex](https://www.cs.utexas.edu/~vijay/bibtex/sosp19-recipe.bib).
+
+## Integrating RECIPE indexes into your own project
+
+Apart from benchmark code with `ycsb.cpp`, we provide simple example codes (`P-*/example.cpp` for each RECIPE index) 
+to help developers who want to apply RECIPE indexes into their own project to easily identify how to use each index's APIs. 
+These example source codes run insert and lookup operations with custom integer keys. For more details of usage for each index, 
+please refer to `P-*/README.md` in each index's directory and `ycsb.cpp` as well.
 
 ## Contents
 
@@ -19,24 +25,17 @@ Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram.
 5. `P-Masstree/` contains the source code for P-Masstree. It is converted from Masstree to be persistent and is custumized for the compact version. The original source code and paper can be found in [code](https://github.com/kohler/masstree-beta) and [paper](https://dl.acm.org/citation.cfm?id=2168855).
 6. `index-microbench/` contains the benchmark framework to generate YCSB workloads. The original source code can be found in [code](https://github.com/wangziqi2016/index-microbench).
 
-## Integrating RECIPE indexes into your own project
+### Recommended use cases for RECIPE indexes
 
-Apart from benchmark code with `ycsb.cpp`, we provide simple example codes (`P-*/example.cpp` for each RECIPE index) 
-to help developers who want to apply RECIPE indexes into their own project to easily identify how to use each index's APIs. 
-These example source codes run insert and lookup operations with custom integer keys. For more details of usage for each index, 
-please refer to `P-*/README.md` in each index's directory and `ycsb.cpp` as well.
-
-### Recommended use cases
-
-1. `P-CLHT` is appropriate to be used for the applications requiring the superior performance of point queries.
-2. `P-HOT` is useful to be employed for the applications consisting of read-dominated workloads.
-3. `P-BwTree` provides the well-balanced performance of insertion, lookup, and range scan operations for the applications using integer-type keys.
-4. `P-ART` is suitable to be used for the applications using intertion-dominated workloads while also requiring a small portion of range queries.
-5. `P-Masstree` provides the well-balanced performance of insertion, lookup, and range scan operations for the applications employing either integer or string keys.
+1. `P-CLHT` is a good fit for applications requiring high-performance point queries.
+2. `P-HOT` is a good fit for  applications with read-dominated workloads.
+3. `P-BwTree` provides well-balanced performance for insertion, lookup, and range scan operations for applications using integer keys.
+4. `P-ART` is suitable for  applications with insertion-dominated workloads and a small number of range queries.
+5. `P-Masstree` provides well-balanced performance for insertion, lookup, and range scan operations for applications using either integer or string keys.
 
 ## Artifact Evaluation
 
-For artifact evaluation, we will evaluates again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in `Benchmark detail` below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
+For artifact evaluation, we will evaluate again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in `Benchmark detail` below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
 
 ## Benchmark Details
 
