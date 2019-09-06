@@ -1,8 +1,0 @@
-.project
-client/.project
-client/.cproject
-client/Debug/client
-daemon/.project
-daemon/.cproject
-daemon/Debug/daemon
-daemon/test/test
