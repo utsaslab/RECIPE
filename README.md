@@ -248,7 +248,7 @@ Copyright for RECIPE indexes is held by the University of Texas at Austin. Pleas
 
 ## Acknowledgements
 
-We thank the National Science Foundation, VMware, Google, and Facebook for partially funding this project.
+We thank the National Science Foundation, VMware, Google, and Facebook for partially funding this project. We thank Intel and ETRI IITP/KEIT[2014-3-00035] for providing access to Optane DC Persistent Memory to perform our experiments.
 
 ## Contact
 
