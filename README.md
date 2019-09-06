@@ -230,7 +230,7 @@ $ vi ./index-microbench/generate_all_workloads.sh
 ```
 $ cd ./index-microbench/
 $ mkdir workloads
-$ make generate_workload
+$ bash generate_all_workloads.sh
 ```
 
 ## Limitations
