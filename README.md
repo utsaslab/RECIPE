@@ -243,7 +243,7 @@ memory allocators using [libpmem](https://pmem.io/pmdk/) APIs.
 2. RECIPE-converted indexes only ensure the lowest level of isolation (Read Uncommitted) when they are employed for 
 transactional systems. You may extend the current implementations to ensure higher level of isolation guarnatee by using 
 additional synchronization primitives, such as read exclusion for the leaf nodes of tree structures or 
-replacing normal CAS instructions with PMwCAS ([paper](https://github.com/microsoft/pmwcas), [source](http://justinlevandoski.org/papers/mwcas.pdf)).
+replacing normal CAS instructions with PMwCAS ([paper](https://ieeexplore.ieee.org/abstract/document/8509270), [source](https://github.com/microsoft/pmwcas)).
 
 ## License
 
