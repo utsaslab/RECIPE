@@ -240,9 +240,9 @@ which transparently converts all the dynamic memory allocations into Persistent 
 However, if you want to apply RECIPE indexes into your real PM application, you would need to change current volatile 
 memory allocators using [libpmem](https://pmem.io/pmdk/) APIs.
 
-2. Current implementations only ensure the lowest level of isolation (Read Uncommitted) since they are based on normal 
-CASs and temporal stores coupled with cache line flush instructions. However, you could extend them
-to guarantee the higher level of isolation by employing PMwCAS ([paper](https://ieeexplore.ieee.org/abstract/document/8509270), [source](https://github.com/microsoft/pmwcas)) and non-temporal stores.
+2. Current implementations only ensure the lowest level of isolation (Read Uncommitted) when using them for transactional systems, 
+since they are based on normal CASs and temporal stores coupled with cache line flush instructions. However, you may extend them
+to guarantee the higher level of isolation (Read Committed) by employing alternative primitives such as PMwCAS ([paper](https://ieeexplore.ieee.org/abstract/document/8509270), [source](https://github.com/microsoft/pmwcas)) and non-temporal stores.
 
 ## License
 
