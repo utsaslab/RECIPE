@@ -234,11 +234,15 @@ $ bash generate_all_workloads.sh
 ```
 
 ## Limitations
-Current implementations are based on general volatile memory allocation API such as `malloc`, `posix_memalign`, `new`, and etc.
+1. Current implementations are based on general volatile memory allocation API such as `malloc`, `posix_memalign`, `new`, and etc.
 Just for performance testing on real PM, you can use [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html), 
 which transparently converts all the dynamic memory allocations into Persistent Memory allocations.
 However, if you want to apply RECIPE indexes into your real PM application, you would need to change current volatile 
 memory allocators using [libpmem](https://pmem.io/pmdk/) APIs.
+
+2. Current implementations only ensure the lowest level of isolation (Read Uncommitted) when using them for transactional systems, 
+since they are based on normal CASs and temporal stores coupled with cache line flush instructions. However, you may extend them
+to guarantee the higher level of isolation (Read Committed) by employing alternative primitives such as PMwCAS ([paper](https://ieeexplore.ieee.org/abstract/document/8509270), [source](https://github.com/microsoft/pmwcas)) and non-temporal stores.
 
 ## License
 
