@@ -682,9 +682,10 @@ void leafnode::make_new_layer(leafnode *l, key_indexed_position &kx_, leafvalue 
         twig_tail->entry[0].value = nl;
     twig_tail = nl;
     if (twig_head != l) {
+        leafnode *iter = twig_head;
         mfence();
-        for ( ; twig_head != twig_tail && twig_head != NULL; twig_head = reinterpret_cast <leafnode *>(twig_head->entry[0].value)) {
-            clflush((char *)twig_head, sizeof(leafnode), false);
+        for ( ; iter != twig_tail && iter != NULL; iter = reinterpret_cast <leafnode *>(iter->entry[0].value)) {
+            clflush((char *)iter, sizeof(leafnode), false);
         }
         clflush((char *)twig_tail, sizeof(leafnode), false);
         mfence();
