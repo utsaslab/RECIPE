@@ -668,14 +668,8 @@ void leafnode::make_new_layer(leafnode *l, key_indexed_position &kx_, leafvalue 
     leafnode *nl = new leafnode(0);
     nl->assign_initialize(0, kcmp < 0 ? olv->fkey[depth] : nlv->fkey[depth], kcmp < 0 ? SET_LV(olv) : SET_LV(nlv));
     nl->assign_initialize(1, kcmp < 0 ? nlv->fkey[depth] : olv->fkey[depth], kcmp < 0 ? SET_LV(nlv) : SET_LV(olv));
-    //nl->entry[kcml > 0].value = l->entry[kx_.p].value;
-    if (kcmp < 0)
-        nl->permutation = permuter::make_sorted(1);
-    else {
-        permuter permnl = permuter::make_sorted(2);
-        permnl.remove_to_back(0);
-        nl->permutation = permnl.value();
-    }
+
+    nl->permutation = permuter::make_sorted(2);
 
     fence();
     if (twig_tail != l)
@@ -698,15 +692,6 @@ void leafnode::make_new_layer(leafnode *l, key_indexed_position &kx_, leafvalue 
         l->entry[kx_.p].value = nl;
         clflush((char *)l->entry_addr(kx_.p) + 8, sizeof(uintptr_t), true);
     }
-
-    l = nl;
-
-    kx_.i = kx_.p = kcmp < 0;
-
-    permuter cp = l->permutation.value();
-    cp.insert_from_back(kx_.i);
-    fence();
-    l->permutation = cp.value();
 }
 
 void leafnode::check_for_recovery(masstree *t, leafnode *left, leafnode *right, void *root, uint32_t depth, leafvalue *lv)
