@@ -608,9 +608,9 @@ leafvalue *masstree::make_leaf(char *key, size_t key_len, uint64_t value)
     void *aligned_alloc;
     size_t len = (key_len % sizeof(uint64_t)) == 0 ? key_len : (((key_len) / sizeof(uint64_t)) + 1) * sizeof(uint64_t);
 
-    posix_memalign(&aligned_alloc, CACHE_LINE_SIZE, sizeof(leafvalue) + len);
+    posix_memalign(&aligned_alloc, CACHE_LINE_SIZE, sizeof(leafvalue) + len + sizeof(uint64_t));
     leafvalue *lv = reinterpret_cast<leafvalue *> (aligned_alloc);
-    memset(lv, 0, sizeof(leafvalue) + len);
+    memset(lv, 0, sizeof(leafvalue) + len + sizeof(uint64_t));
 
     lv->value = value;
     lv->key_len = key_len;          // key_len or len??
@@ -620,7 +620,7 @@ leafvalue *masstree::make_leaf(char *key, size_t key_len, uint64_t value)
         lv->fkey[i] = __builtin_bswap64(lv->fkey[i]);
 
     if (value != 0)
-        clflush((char *) lv, sizeof(leafvalue) + len, true);
+        clflush((char *) lv, sizeof(leafvalue) + len + sizeof(uint64_t), true);
     return lv;
 }
 
