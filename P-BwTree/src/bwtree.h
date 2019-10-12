@@ -6224,6 +6224,7 @@ before_switch:
       case NodeType::LeafRemoveType:
       case NodeType::InnerRemoveType: {
         bwt_printf("Helping along remove node...\n");
+        clflush((char *)&mapping_table[snapshot_p->node_id], sizeof(mapping_table[snapshot_p->node_id]), false, true);
 
         // The right branch for merging is the child node under remove node
         const BaseNode *merge_right_branch = \
@@ -6333,6 +6334,7 @@ before_switch:
       case NodeType::InnerMergeType:
       case NodeType::LeafMergeType: {
         bwt_printf("Helping along merge delta\n");
+        clflush((char *)&mapping_table[snapshot_p->node_id], sizeof(mapping_table[snapshot_p->node_id]), false, true);
 
         // First consolidate parent node and find the left/right
         // sep pair plus left node ID
@@ -6416,6 +6418,7 @@ before_switch:
       case NodeType::InnerSplitType:
       case NodeType::LeafSplitType: {
         bwt_printf("Helping along split node\n");
+        clflush((char *)&mapping_table[snapshot_p->node_id], sizeof(mapping_table[snapshot_p->node_id]), false, true);
         //std::cout << __func__ << ": Helping split " << std::endl;
 
         // These two will be stored inside InnerInsertNode
