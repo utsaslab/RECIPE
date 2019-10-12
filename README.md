@@ -44,24 +44,17 @@ allocations, mapped by pmem.
 
 #### Ext4-DAX mount
 ```
-$ mkfs.ext4 -b 4096 -E stride=512 -F /dev/pmem0
-$ mount -o dax /dev/pmem0 /mnt/pmem
+$ sudo mkfs.ext4 -b 4096 -E stride=512 -F /dev/pmem0
+$ sudo mount -o dax /dev/pmem0 /mnt/pmem
 ```
 
-#### Install [PMDK](https://github.com/pmem/pmdk) & jemalloc provided in PMDK package
+#### Install [PMDK](https://github.com/pmem/pmdk)
 <pre>
-<b>Install PMDK</b>
 $ git clone https://github.com/pmem/pmdk.git
 $ cd pmdk
 $ git checkout tags/1.6
 $ make -j
-
-<b>Install jemalloc</b>
-$ cd src/jemalloc
-$ ./autogen.sh
-$ ./configure
-$ make -j
-$ cd ../../../
+$ cd ..
 </pre>
 
 #### Configuration for [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)
@@ -81,7 +74,6 @@ $ vi ./scripts/set_vmmalloc.sh
 
 Please change below configurations to fit for your environment.
 
-export LD_PRELOAD="./pmdk/src/nondebug/libvmmalloc.so.1"
 export VMMALLOC_POOL_SIZE=$((64*1024*1024*1024))
 export VMMALLOC_POOL_DIR="/mnt/pmem"
 ```
@@ -121,19 +113,13 @@ Usage: ./ycsb [index type] [ycsb workload type] [key distribution] [access patte
 ```
 
 #### Persistent Memory environment
-Build all
-<pre>
-$ mkdir build
-$ cd build
-<b>$ cmake -DPMEM_TEST=ON ..</b>
-$ make
-</pre>
 Run
 <pre>
 $ cd ${project root directory}
-<b>$ source ./scripts/set_vmmalloc.sh</b>
-$ ./build/ycsb art a randint uniform 4
-<b>$ source ./scripts/unset_vmmalloc.sh</b>
+$ sudo su
+<b># source ./scripts/set_vmmalloc.sh</b>
+# <b>LD_PRELOAD="./pmdk/src/nondebug/libvmmalloc.so.1"</b> ./build/ycsb art a randint uniform 4
+<b># source ./scripts/unset_vmmalloc.sh</b>
 </pre>
 
 ## Artifact Evaluation
