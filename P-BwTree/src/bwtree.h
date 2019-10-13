@@ -3262,6 +3262,10 @@ class BwTree : public BwTreeBase {
         clflush((char *)node_p, sizeof(InnerAbortNode), true, true);
         break;
       }
+      case NodeType::InnerRemoveType: {
+        clflush((char *)node_p, sizeof(InnerRemoveNode), true, true);
+        break;
+      }
       case NodeType::LeafType: {
         clflush((char *)node_p, sizeof(LeafNode) + sizeof(KeyValuePair) * node_p->GetItemCount(), true, true);
         break;
@@ -5708,7 +5712,7 @@ before_switch:
 	// If the abort flag is not set, it means there is a remove delta, 
 	// but the parent isn't locked. So a crash has probably occured.
 	if (!context_p->abort_flag) {
-		
+        clflush((char *)&mapping_table[snapshot_p->node_id], sizeof(mapping_table[snapshot_p->node_id]), false, true);
         	// The right branch for merging is the child node under remove node
         	const BaseNode *merge_right_branch = \
           		(static_cast<const DeltaNode *>(snapshot_p->node_p))->child_node_p;
