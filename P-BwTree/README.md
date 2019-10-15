@@ -6,7 +6,8 @@ It increases concurrency by prepending delta records to nodes. It uses a mapping
 atomically installing delta updates using a single Compare-And-Swap (CAS) operation.
 BwTree is an ordered index supporting both point and range queries.
 
-**Conversion**. BwTree is converted into `P-BwTree` by adding cache line flushes and memory fences after each critical volatile store. 
+**Conversion**. BwTree is converted into `P-BwTree` by adding cache line flushes and memory fences 
+after each critical volatile store as well as load to prevent the stores persisted to PM from being reordered.
 
 **Performance**. Compared with [FAST&FAIR](https://www.usenix.org/conference/fast18/presentation/hwang) that is a state-of-the-art ordered index, 
 `P-BwTree` shows similar performance to `FAST&FAIR` in all YCSB workloads using random integer keys (**1.13x**, **1.04x**, **0.93x**, **0.92x** 
