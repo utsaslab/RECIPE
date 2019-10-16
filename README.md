@@ -7,7 +7,7 @@ Please cite the following paper if you use the RECIPE approach or RECIPE-convert
 **RECIPE : Converting Concurrent DRAM Indexes to Persistent-Memory Indexes**.
 Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram. 
 *Proceedings of the The 27th ACM Symposium on Operating Systems Principles (SOSP 19)*. 
-[Paper PDF](https://www.cs.utexas.edu/~vijay/papers/sosp19-recipe.pdf). [Bibtex](https://www.cs.utexas.edu/~vijay/bibtex/sosp19-recipe.bib).
+[Paper PDF](https://arxiv.org/pdf/1909.13670.pdf). [Bibtex](https://www.cs.utexas.edu/~vijay/bibtex/sosp19-recipe.bib).
 
 ## Integrating RECIPE indexes into your own project
 
