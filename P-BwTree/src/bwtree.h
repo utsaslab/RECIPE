@@ -6396,6 +6396,7 @@ before_switch:
         if(found_pair_p != nullptr) {
           assert(found_pair_p->second == delete_item_p->second);
         } else {
+          clflush((char *)&mapping_table[parent_snapshot_p->node_id], sizeof(mapping_table[parent_snapshot_p->node_id]), false, true);
           return NO_CRASH;
         }
 
@@ -6595,7 +6596,7 @@ before_switch:
           // If the item has been found then we do not post
           // InnerInsertNode onto the parent
           if(found_item_p != nullptr) {
-            
+            clflush((char *)&mapping_table[parent_snapshot_p->node_id], sizeof(mapping_table[parent_snapshot_p->node_id]), false, true);
             // Check whether there is an item in the parent
             // node that has the same key but different NodeID
             // This is totally legal
