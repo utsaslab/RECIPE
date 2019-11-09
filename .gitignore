@@ -16,6 +16,6 @@ P-Masstree/build
 P-CLHT/build
 P-HOT/build
 
-tags
-cscope.out
-cscope.files
+*tags
+*cscope.out
+*cscope.files
