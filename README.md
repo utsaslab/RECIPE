@@ -40,10 +40,7 @@ please refer to `P-*/README.md` in each index's directory and `ycsb.cpp` as well
 - At least 32GB DRAM
 - x86-64 CPU supporting at least 16 threads
 - x86-64 CPU supporting at least the AVX-2 and BMI-2 instruction sets (Haswell and newer)
-
-### Required compile packages
-- cmake
-- Compiler: g++-7, gcc-7, c++17
+- Compile: cmake, g++-7, gcc-7, c++17
 
 ### Dependencies
 #### Install build packages
