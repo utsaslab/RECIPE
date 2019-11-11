@@ -162,8 +162,6 @@ export VMMALLOC_POOL_DIR="/mnt/pmem"
 
 ### Building & Running on Persistent Memory and DRAM
 
-Please check first [Benchmark Details](https://github.com/utsaslab/RECIPE#benchmark-details) section below to make sure the required dependencies.
-
 #### Build P-CLHT
 
 Because CLHT is based on C language, we first make static library and then separately link it to main project source.
