@@ -1,3 +1,9 @@
+## Desired system configurations for artifact evaluation
+- Ubuntu 18.04.1 LTS
+- At least 32GB DRAM
+- x86-64 CPU supporting at least 16 threads
+- x86-64 CPU supporting at least the AVX-2 and BMI-2 instruction sets (Haswell and newer)
+
 ## Performance Benchmarks
 We evaluate the performance of indexes converted using the RECIPE against state-of-the-art PM indexes with YCSB ([Yahoo! Cloud Serving Benchmark](https://github.com/brianfrankcooper/YCSB)). We split our evaluation based on the data structure into ordered indexes and unordered indexes. An ordered index aims to support both point and range queries, but an unordered index only provides point queries. `P-BwTree`, `P-Masstree`, `P-ART`, and `P-HOT` are the ordered indexes, while `CCEH`, `Level Hashing`, and `P-CLHT` are the unordered indexes.
 

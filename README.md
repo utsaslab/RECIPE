@@ -35,6 +35,93 @@ please refer to `P-*/README.md` in each index's directory and `ycsb.cpp` as well
 
 ## Running RECIPE Indexes on Persistent Memory and DRAM
 
+### Desired system configurations (for DRAM environment)
+- Ubuntu 18.04.1 LTS
+- At least 32GB DRAM
+- x86-64 CPU supporting at least 16 threads
+- x86-64 CPU supporting at least the AVX-2 and BMI-2 instruction sets (Haswell and newer)
+
+### Required compile packages
+- cmake
+- Compiler: g++-7, gcc-7, c++17
+
+### Dependencies
+#### Install build packages
+```
+$ sudo apt-get install build-essential cmake libboost-all-dev libpapi-dev default-jdk
+```
+#### Install jemalloc and tbb
+```
+$ sudo apt-get install libtbb-dev libjemalloc-dev
+```
+### Generating YCSB workloads
+#### Download YCSB source code
+```
+$ cd ./index-microbench
+$ curl -O --location https://github.com/brianfrankcooper/YCSB/releases/download/0.11.0/ycsb-0.11.0.tar.gz
+$ tar xfvz ycsb-0.11.0.tar.gz
+$ mv ycsb-0.11.0 YCSB
+```
+#### How to configure and generate workloads
+- Configure the options of each workloads (a, b, c, e), would only need to change `$recordcount` and `$operationcount`.
+```
+$ vi ./index-microbench/workload_spec/<workloada or workloadb or workloadc or workloade>
+```
+- Select which workloads to be generated. Default configuration will generate all workloads (a, b, c, e). Change the code line `for WORKLOAD_TYPE in <a b c e>; do`, depending on which workload you want to generate.
+```
+$ vi ./index-microbench/generate_all_workloads.sh
+```
+- Generate the workloads. This will generate both random integer keys and string ycsb keys with the specified key distribution.
+```
+$ cd ./index-microbench/
+$ mkdir workloads
+$ bash generate_all_workloads.sh
+```
+### Checklists
+#### Configuration for workload size.
+- Change `LOAD_SIZE` and `RUN_SIZE` variables to be same with the generated workload size, which are hard-coded in `ycsb.cpp` (Default is 64000000).
+```
+$ vi ycsb.cpp
+```
+#### Configuration for cache line flush instruction.
+- Check supported cache line flush instructions. Current default configurations are based on `CLFLUSH` instruction to flush the dirty cache lines. If your CPU ISA supports `CLWB` or `CLFLUSHOPT`, please make sure to change the options in `./CMakeLists.txt` and `./CLHT/Makefile`. There are three options (clflush, clflushopt, clwb).
+```
+$ lscpu | grep clflush
+$ lscpu | grep clflushopt
+$ lscpu | grep clwb
+```
+- Overall
+```
+$ vi CMakeLists.txt
+- add_definitions(-DCLFLUSH) (default configuration)
+or
+- add_definitions(-DCLFLUSH_OPT)
+or
+- add_definitions(-DCLWB)
+```
+- CLHT
+```
+$ vi CLHT/Makefile
+- CFLAGS= -D_GNU_SOURCE -DCLFLUSH (default configuration)
+or
+- CFLAGS= -D_GNU_SOURCE -DCLFLUSH_OPT
+or
+- CFLAGS= -D_GNU_SOURCE -DCLWB
+```
+
+#### Check if your machine supports AVX-2 and BMI-2.
+```
+$ lscpu | grep avx2
+$ lscpu | grep bmi2
+```
+AVX-2 and BMI-2 are required to run HOT ([Height Optimized Trie](https://github.com/speedskater/hot)).
+If your machine does not provide those primitives, please disable HOT from `CMakeLists.txt`.
+You can complete compile and run other index structures, except for HOT.
+```
+$ vi CMakeLists.txt
+set(HOT TRUE) --> set(HOT FALSE)
+```
+
 ### Configurations for Persistent Memory 
 
 For running the indexes on Intel Optane DC Persistent Memory, we will use 
@@ -47,7 +134,6 @@ allocations, mapped by pmem.
 $ sudo mkfs.ext4 -b 4096 -E stride=512 -F /dev/pmem0
 $ sudo mount -o dax /dev/pmem0 /mnt/pmem
 ```
-
 #### Install [PMDK](https://github.com/pmem/pmdk)
 <pre>
 $ git clone https://github.com/pmem/pmdk.git
@@ -56,7 +142,6 @@ $ git checkout tags/1.6
 $ make -j
 $ cd ..
 </pre>
-
 #### Configuration for [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)
 - LD_PRELOAD=path
 
@@ -127,97 +212,6 @@ $ sudo su
 For artifact evaluation, we will evaluate again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in [Benchmark details](https://github.com/utsaslab/RECIPE#benchmark-details) section below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
 
 **RECIPE** has been awarded three badges: **Artifact Available**, **Artifact Functional**, and **Results Reproduced**.
-
-## Benchmark Details
-
-### Desired system configurations for Artifact Evaluation
-- Ubuntu 18.04.1 LTS
-- At least 32GB DRAM
-- x86-64 CPU supporting at least 16 threads
-- x86-64 CPU supporting at least the AVX-2 and BMI-2 instruction sets (Haswell and newer)
-
-### Required compile packages
-- cmake
-- Compiler: g++-7, gcc-7, c++17
-
-### Dependencies
-#### Install build packages
-```
-$ sudo apt-get install build-essential cmake libboost-all-dev libpapi-dev default-jdk
-```
-#### Install jemalloc and tbb
-```
-$ sudo apt-get install libtbb-dev libjemalloc-dev
-```
-
-### Checklists
-#### Configuration for workload size.
-- Change `LOAD_SIZE` and `RUN_SIZE` variables to be same with the generated workload size, which are hard-coded in `ycsb.cpp` (Default is 64000000).
-```
-$ vi ycsb.cpp
-```
-#### Configuration for cache line flush instruction.
-- Check supported cache line flush instructions. Current default configurations are based on `CLFLUSH` instruction to flush the dirty cache lines. If your CPU ISA supports `CLWB` or `CLFLUSHOPT`, please make sure to change the options in `./CMakeLists.txt` and `./CLHT/Makefile`. There are three options (clflush, clflushopt, clwb).
-```
-$ lscpu | grep clflush
-$ lscpu | grep clflushopt
-$ lscpu | grep clwb
-```
-- Overall
-```
-$ vi CMakeLists.txt
-- add_definitions(-DCLFLUSH) (default configuration)
-or
-- add_definitions(-DCLFLUSH_OPT)
-or
-- add_definitions(-DCLWB)
-```
-- CLHT
-```
-$ vi CLHT/Makefile
-- CFLAGS= -D_GNU_SOURCE -DCLFLUSH (default configuration)
-or
-- CFLAGS= -D_GNU_SOURCE -DCLFLUSH_OPT
-or
-- CFLAGS= -D_GNU_SOURCE -DCLWB
-```
-
-#### Check if your machine supports AVX-2 and BMI-2.
-```
-$ lscpu | grep avx2
-$ lscpu | grep bmi2
-```
-AVX-2 and BMI-2 are required to run HOT ([Height Optimized Trie](https://github.com/speedskater/hot)).
-If your machine does not provide those primitives, please disable HOT from `CMakeLists.txt`.
-You can complete compile and run other index structures, except for HOT.
-```
-$ vi CMakeLists.txt
-set(HOT TRUE) --> set(HOT FALSE)
-```
-
-### Generating YCSB workloads
-#### Download YCSB source code
-```
-$ cd ./index-microbench
-$ curl -O --location https://github.com/brianfrankcooper/YCSB/releases/download/0.11.0/ycsb-0.11.0.tar.gz
-$ tar xfvz ycsb-0.11.0.tar.gz
-$ mv ycsb-0.11.0 YCSB
-```
-#### How to configure and generate workloads
-- Configure the options of each workloads (a, b, c, e), would only need to change `$recordcount` and `$operationcount`.
-```
-$ vi ./index-microbench/workload_spec/<workloada or workloadb or workloadc or workloade>
-```
-- Select which workloads to be generated. Default configuration will generate all workloads (a, b, c, e). Change the code line `for WORKLOAD_TYPE in <a b c e>; do`, depending on which workload you want to generate.
-```
-$ vi ./index-microbench/generate_all_workloads.sh
-```
-- Generate the workloads. This will generate both random integer keys and string ycsb keys with the specified key distribution.
-```
-$ cd ./index-microbench/
-$ mkdir workloads
-$ bash generate_all_workloads.sh
-```
 
 ## Limitations
 1. Current implementations are based on general volatile memory allocation API such as `malloc`, `posix_memalign`, `new`, and etc.
