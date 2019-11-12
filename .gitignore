@@ -16,6 +16,8 @@ P-Masstree/build
 P-CLHT/build
 P-HOT/build
 
+pmdk
+
 *tags
 *cscope.out
 *cscope.files
