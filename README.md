@@ -148,7 +148,7 @@ Build all
 <pre>
 $ mkdir build
 $ cd build
-$ cmake .. (<b>-DENABLE_CLFLUSH=ON</b>(default) or <b>-DENABLE_CLFLUSHOPT=ON</b> or <b>-DENABLE_CLWB=ON</b>)
+$ cmake .. (<b>-DENABLE_CLFLUSH=ON</b> (default) or <b>-DENABLE_CLFLUSHOPT=ON</b> or <b>-DENABLE_CLWB=ON</b>)
 $ make
 </pre>
 Run
@@ -169,9 +169,9 @@ Run
 <pre>
 $ cd ${project root directory}
 $ sudo su
-<b># source ./scripts/set_vmmalloc.sh</b>
+# <b>source ./scripts/set_vmmalloc.sh</b>
 # <b>LD_PRELOAD="./pmdk/src/nondebug/libvmmalloc.so.1"</b> ./build/ycsb art a randint uniform 4
-<b># source ./scripts/unset_vmmalloc.sh</b>
+# <b>source ./scripts/unset_vmmalloc.sh</b>
 </pre>
 
 ## Artifact Evaluation
