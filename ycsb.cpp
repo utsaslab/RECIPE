@@ -991,6 +991,10 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                 uint64_t start_key = RUN_SIZE / num_thread * (uint64_t)thread_id;
                 uint64_t end_key = start_key + RUN_SIZE / num_thread;
 
+                clht_gc_thread_init(tds[thread_id].ht, tds[thread_id].id);
+                ssmem_allocator_t *alloc = (ssmem_allocator_t *) malloc(sizeof(ssmem_allocator_t));
+                ssmem_alloc_init_fs_size(alloc, SSMEM_DEFAULT_MEM_SIZE, SSMEM_GC_FREE_SET_SIZE, tds[thread_id].id);
+
                 for (uint64_t i = start_key; i < end_key; i++) {
                     if (ops[i] == OP_INSERT) {
                         clht_put(tds[thread_id].ht, keys[i], keys[i]);

@@ -12,16 +12,34 @@ set(HOT TRUE)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -mrtm -mcx16 -mavx -mavx2 -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
 
-## Basic configurations
+### Basic configurations
 add_definitions(-DBWTREE_NODEBUG)
 
-## Instruction options for Cache line flush
-add_definitions(-DCLFLUSH)
-#add_definitions(-DCLFLUSH_OPT)
-#add_definitions(-DCLWB)
+### Instruction options for Cache line flush
+OPTION(ENABLE_CLFLUSH "Option for using clflush instruction" OFF)
+OPTION(ENABLE_CLFLUSHOPT "Option for using clflushopt instruction" OFF)
+OPTION(ENABLE_CLWB "Option for using clwb instruction" OFF)
+if(ENABLE_CLFLUSH)
+    message(STATUS "Option for clflush is enabled")
+    add_definitions(-DCLFLUSH)
+elseif(ENABLE_CLFLUSHOPT)
+    message(STATUS "Option for clflushopt is enabled")
+    add_definitions(-DCLFLUSH_OPT)
+elseif(ENABLE_CLWB)
+    message(STATUS "Option for clwb is enabled")
+    add_definitions(-DCLWB)
+else()
+    message(STATUS "Option for clflush is enabled (default)")
+    add_definitions(-DCLFLUSH)
+endif()
+
+
+### Definition for CLHT
+add_definitions(-DADD_PADDING)
 
 OPTION(WOART_STRING "Option for enabling the string type support of WOART" OFF) # Disabled by default
 if(WOART_STRING)
+    message(STATUS "Option for the string type support of WOART is enabled")
     add_definitions(-DSTRING_TYPE)
 endif(WOART_STRING)
 
@@ -45,18 +63,19 @@ if (HOT)
 set(INDEX_FILES P-ART/Tree.cpp third-party/FAST_FAIR/btree.h
     P-HOT/libs/hot/rowex/include/hot/rowex/HOTRowex.hpp third-party/CCEH/src/CCEH_MSB.cpp
     third-party/CCEH/src/Level_hashing.cpp P-BwTree/src/bwtree.cpp
-    third-party/WOART/woart.cpp)
+    third-party/WOART/woart.cpp P-CLHT/src/clht_lb_res.c P-CLHT/src/clht_gc.c
+    P-CLHT/external/sspfd/sspfd.c P-CLHT/external/ssmem/src/ssmem.c)
 else()
 set(INDEX_FILES P-ART/Tree.cpp third-party/FAST_FAIR/btree.h third-party/CCEH/src/CCEH_MSB.cpp
     third-party/CCEH/src/Level_hashing.cpp P-BwTree/src/bwtree.cpp
-    P-BwTree/test/test_suite.cpp third-party/WOART/woart.cpp)
+    P-BwTree/test/test_suite.cpp third-party/WOART/woart.cpp
+    P-CLHT/src/clht_lb_res.c P-CLHT/src/clht_gc.c P-CLHT/external/sspfd/sspfd.c
+    P-CLHT/external/ssmem/src/ssmem.c)
 endif()
 
 add_library(Indexes ${INDEX_FILES})
 
-target_link_libraries(Indexes ${TbbLib} ${JemallocLib}
-    ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_SOURCE_DIR}/P-CLHT/libclht.a
-    ${CMAKE_SOURCE_DIR}/P-CLHT/external/lib/libssmem.a)
+target_link_libraries(Indexes ${TbbLib} ${JemallocLib} ${CMAKE_THREAD_LIBS_INIT} pthread)
 
 set(YCSB_TEST ycsb.cpp)
 add_executable(ycsb ${YCSB_TEST})

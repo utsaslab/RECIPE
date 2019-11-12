@@ -11,9 +11,24 @@ endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -mrtm -mcx16 -mavx -mavx2 -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
 
 ## Instruction options for Cache line flush
-add_definitions(-DCLFLUSH)
-#add_definitions(-DCLFLUSH_OPT)
-#add_definitions(-DCLWB)
+OPTION(ENABLE_CLFLUSH "Option for using clflush instruction" OFF)
+OPTION(ENABLE_CLFLUSHOPT "Option for using clflushopt instruction" OFF)
+OPTION(ENABLE_CLWB "Option for using clwb instruction" OFF)
+if(ENABLE_CLFLUSH)
+    message(STATUS "Option for clflush is enabled")
+    add_definitions(-DCLFLUSH)
+elseif(ENABLE_CLFLUSHOPT)
+    message(STATUS "Option for clflushopt is enabled")
+    add_definitions(-DCLFLUSH_OPT)
+elseif(ENABLE_CLWB)
+    message(STATUS "Option for clwb is enabled")
+    add_definitions(-DCLWB)
+else()
+    message(STATUS "Option for clflush is enabled (default)")
+    add_definitions(-DCLFLUSH)
+endif()
+
+add_definitions(-DADD_PADDING)
 
 include_directories(include external/include)
 
@@ -21,9 +36,9 @@ find_library(JemallocLib jemalloc)
 find_library(TbbLib tbb)
 find_package (Threads)
 
-set(P_CLHT_TEST example.cpp)
+set(P_CLHT_TEST example.cpp src/clht_lb_res.c src/clht_gc.c
+    external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
 add_executable(example ${P_CLHT_TEST})
 
-target_link_libraries(example ${TbbLib} ${JemallocLib}
-    ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_SOURCE_DIR}/libclht.a
-    ${CMAKE_SOURCE_DIR}/external/lib/libssmem.a atomic boost_system boost_thread)
+target_link_libraries(example ${TbbLib} ${JemallocLib} boost_system
+    boost_thread pthread)
