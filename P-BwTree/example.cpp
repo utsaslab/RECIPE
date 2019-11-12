@@ -90,7 +90,7 @@ void run(char **argv) {
         keys[i] = i + 1;
     }
 
-    uint64_t num_thread = atoi(argv[2]);
+    int num_thread = atoi(argv[2]);
 
     printf("operation,n,ops/s\n");
     auto t = new BwTree<uint64_t, uint64_t, KeyComparator, KeyEqualityChecker> {true, KeyComparator{1}, KeyEqualityChecker{1}};
