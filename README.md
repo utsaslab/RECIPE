@@ -60,15 +60,15 @@ $ tar xfvz ycsb-0.11.0.tar.gz
 $ mv ycsb-0.11.0 YCSB
 ```
 #### How to configure and generate workloads
-- Configure the options of each workloads (a, b, c, e), would only need to change `$recordcount` and `$operationcount`.
+Configure the options of each workloads (a, b, c, e), would only need to change `$recordcount` and `$operationcount`.
 ```
 $ vi ./index-microbench/workload_spec/<workloada or workloadb or workloadc or workloade>
 ```
-- Select which workloads to be generated. Default configuration will generate all workloads (a, b, c, e). Change the code line `for WORKLOAD_TYPE in <a b c e>; do`, depending on which workload you want to generate.
+Select which workloads to be generated. Default configuration will generate all workloads (a, b, c, e). Change the code line `for WORKLOAD_TYPE in <a b c e>; do`, depending on which workload you want to generate.
 ```
 $ vi ./index-microbench/generate_all_workloads.sh
 ```
-- Generate the workloads. This will generate both random integer keys and string ycsb keys with the specified key distribution.
+Generate the workloads. This will generate both random integer keys and string ycsb keys with the specified key distribution.
 ```
 $ cd ./index-microbench/
 $ mkdir workloads
@@ -76,12 +76,12 @@ $ bash generate_all_workloads.sh
 ```
 ### Checklists
 #### Configuration for workload size.
-- Change `LOAD_SIZE` and `RUN_SIZE` variables to be same with the generated workload size, which are hard-coded in `ycsb.cpp` (Default is 64000000).
+Change `LOAD_SIZE` and `RUN_SIZE` variables to be same with the generated workload size, which are hard-coded in `ycsb.cpp` (Default is 64000000).
 ```
 $ vi ycsb.cpp
 ```
 #### Configuration for cache line flush instruction.
-- Check supported cache line flush instructions. Current default configurations are based on `CLFLUSH` instruction to flush the dirty cache lines. If your CPU ISA supports `CLWB` or `CLFLUSHOPT`, please make sure to add the proper compile options (`-DENABLE_CLFLUSHOPT=ON` or `-DENABLE_CLWB=ON`) after cmake.
+Check supported cache line flush instructions. Current default configurations are based on `CLFLUSH` instruction to flush the dirty cache lines. If your CPU ISA supports `CLWB` or `CLFLUSHOPT`, please make sure to add the proper compile options (`-DENABLE_CLFLUSHOPT=ON` or `-DENABLE_CLWB=ON`) after cmake.
 ```
 $ lscpu | grep clflush
 $ lscpu | grep clflushopt
