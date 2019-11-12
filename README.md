@@ -81,31 +81,12 @@ $ bash generate_all_workloads.sh
 $ vi ycsb.cpp
 ```
 #### Configuration for cache line flush instruction.
-- Check supported cache line flush instructions. Current default configurations are based on `CLFLUSH` instruction to flush the dirty cache lines. If your CPU ISA supports `CLWB` or `CLFLUSHOPT`, please make sure to change the options in `./CMakeLists.txt` and `./CLHT/Makefile`. There are three options (clflush, clflushopt, clwb).
+- Check supported cache line flush instructions. Current default configurations are based on `CLFLUSH` instruction to flush the dirty cache lines. If your CPU ISA supports `CLWB` or `CLFLUSHOPT`, please make sure to add the proper compile options (`-DENABLE_CLFLUSHOPT=ON` or `-DENABLE_CLWB=ON`) after cmake.
 ```
 $ lscpu | grep clflush
 $ lscpu | grep clflushopt
 $ lscpu | grep clwb
 ```
-- Overall
-```
-$ vi CMakeLists.txt
-- add_definitions(-DCLFLUSH) (default configuration)
-or
-- add_definitions(-DCLFLUSH_OPT)
-or
-- add_definitions(-DCLWB)
-```
-- CLHT
-```
-$ vi CLHT/Makefile
-- CFLAGS= -D_GNU_SOURCE -DCLFLUSH (default configuration)
-or
-- CFLAGS= -D_GNU_SOURCE -DCLFLUSH_OPT
-or
-- CFLAGS= -D_GNU_SOURCE -DCLWB
-```
-
 #### Check if your machine supports AVX-2 and BMI-2.
 ```
 $ lscpu | grep avx2
@@ -162,23 +143,14 @@ export VMMALLOC_POOL_DIR="/mnt/pmem"
 
 ### Building & Running on Persistent Memory and DRAM
 
-#### Build P-CLHT
-
-Because CLHT is based on C language, we first make static library and then separately link it to main project source.
-```
-$ cd ./P-CLHT
-$ bash compile.sh lb
-$ cd ..
-```
-
 #### DRAM environment
 Build all
-```
+<pre>
 $ mkdir build
 $ cd build
-$ cmake ..
+$ cmake .. (<b>-DENABLE_CLFLUSH=ON</b>(default) or <b>-DENABLE_CLFLUSHOPT=ON</b> or <b>-DENABLE_CLWB=ON</b>)
 $ make
-```
+</pre>
 Run
 ```
 $ cd ${project root directory}
