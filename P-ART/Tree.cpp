@@ -3,7 +3,7 @@
 #include <algorithm>
 #include "Tree.h"
 #include "N.cpp"
-#include "../Epoche.cpp"
+#include "Epoche.cpp"
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdio.h>

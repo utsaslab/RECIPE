@@ -10,7 +10,7 @@
 #include <atomic>
 #include <string.h>
 #include "../Key.h"
-#include "../Epoche.h"
+#include "Epoche.h"
 #ifdef LOCK_INIT
 #include "tbb/concurrent_vector.h"
 #endif
