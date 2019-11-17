@@ -8,35 +8,64 @@ else()
     message(STATUS "Build type is set to ${CMAKE_BUILD_TYPE}")
 endif()
 
-set(HOT TRUE)
-
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -march=native -mrtm -mcx16 -mavx -mavx2 -mbmi2 -mlzcnt -Wno-deprecated-declarations -Wall -Wextra -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free -faligned-new=64 -DNDEBUG")
 
-### Basic configurations
-add_definitions(-DBWTREE_NODEBUG)
+execute_process(COMMAND cat /proc/cpuinfo COMMAND grep clflush OUTPUT_VARIABLE ENABLE_CLFLUSH)
+execute_process(COMMAND cat /proc/cpuinfo COMMAND grep clflushopt OUTPUT_VARIABLE ENABLE_CLFLUSHOPT)
+execute_process(COMMAND cat /proc/cpuinfo COMMAND grep clwb OUTPUT_VARIABLE ENABLE_CLWB)
+execute_process(COMMAND cat /proc/cpuinfo COMMAND grep avx2 OUTPUT_VARIABLE ENABLE_AVX2)
+execute_process(COMMAND cat /proc/cpuinfo COMMAND grep bmi2 OUTPUT_VARIABLE ENABLE_BMI2)
+execute_process(COMMAND cat /proc/cpuinfo COMMAND grep avx512 OUTPUT_VARIABLE ENABLE_AVX512)
 
-### Instruction options for Cache line flush
-OPTION(ENABLE_CLFLUSH "Option for using clflush instruction" OFF)
-OPTION(ENABLE_CLFLUSHOPT "Option for using clflushopt instruction" OFF)
-OPTION(ENABLE_CLWB "Option for using clwb instruction" OFF)
-if(ENABLE_CLFLUSH)
-    message(STATUS "Option for clflush is enabled")
-    add_definitions(-DCLFLUSH)
-elseif(ENABLE_CLFLUSHOPT)
-    message(STATUS "Option for clflushopt is enabled")
-    add_definitions(-DCLFLUSH_OPT)
-elseif(ENABLE_CLWB)
-    message(STATUS "Option for clwb is enabled")
+if(ENABLE_CLWB)
     add_definitions(-DCLWB)
-else()
-    message(STATUS "Option for clflush is enabled (default)")
+    message(STATUS "Looking for clwb instruction - found")
+elseif(ENABLE_CLFLUSHOPT)
+    add_definitions(-DCLFLUSH_OPT)
+    message(STATUS "Looking for clwb instruction - not found")
+    message(STATUS "Looking for clflushopt instruction - found")
+elseif(ENABLE_CLFLUSH)
     add_definitions(-DCLFLUSH)
+    message(STATUS "Looking for clwb instruction - not found")
+    message(STATUS "Looking for clflushopt instruction - not found")
+    message(STATUS "Looking for clflush instruction - found")
+else()
+    message(FATAL_ERROR "Cannot find any flush instructions (clflush, clflushopt, clwb)")
 endif()
 
+if(ENABLE_AVX2)
+    message(STATUS "Looking for avx2 instruction - found")
+else()
+    message(STATUS "Looking for avx2 instruction - not found")
+endif()
 
-### Definition for CLHT
+if(ENABLE_BMI2)
+    message(STATUS "Looking for bmi2 instruction - found")
+else()
+    message(STATUS "Looking for bmi2 instruction - not found")
+endif()
+
+if(ENABLE_AVX512)
+    set(CMAKE_CXX_FLAGS "-mavx512f -mavx512vl -mavx512bw -mavx512dq -mavx512cd ${CMAKE_CXX_FLAGS}")
+    message(STATUS "Looking for avx512 instruction - found")
+else()
+    message(STATUS "Looking for avx512 instruction - not found")
+endif()
+
+if(ENABLE_AVX2 AND ENABLE_BMI2)
+    set(HOT TRUE)
+else()
+    set(HOT FALSE)
+    message(STATUS "Cannot find avx2 & bmi2 --> HOT (Height Optimized Trie) is disabled")
+endif()
+
+### Definitions for BwTree
+add_definitions(-DBWTREE_NODEBUG)
+
+### Definitions for CLHT
 add_definitions(-DADD_PADDING)
 
+### Option for WOART
 OPTION(WOART_STRING "Option for enabling the string type support of WOART" OFF) # Disabled by default
 if(WOART_STRING)
     message(STATUS "Option for the string type support of WOART is enabled")
