@@ -7,7 +7,7 @@ Please cite the following paper if you use the RECIPE approach or RECIPE-convert
 **RECIPE : Converting Concurrent DRAM Indexes to Persistent-Memory Indexes**.
 Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram. 
 *Proceedings of the The 27th ACM Symposium on Operating Systems Principles (SOSP 19)*. 
-[Paper PDF](https://www.cs.utexas.edu/~vijay/papers/sosp19-recipe.pdf). [Extended version(arXiv)](https://arxiv.org/abs/1909.13670) [Bibtex](https://www.cs.utexas.edu/~vijay/bibtex/sosp19-recipe.bib).
+[Paper PDF](https://www.cs.utexas.edu/~vijay/papers/sosp19-recipe.pdf). [Extended version(arXiv)](https://arxiv.org/abs/1909.13670). [Bibtex](https://www.cs.utexas.edu/~vijay/bibtex/sosp19-recipe.bib).
 
 ## Integrating RECIPE indexes into your own project
 
@@ -80,26 +80,6 @@ Change `LOAD_SIZE` and `RUN_SIZE` variables to be same with the generated worklo
 ```
 $ vi ycsb.cpp
 ```
-#### Configuration for cache line flush instruction.
-Check supported cache line flush instructions. Current default configurations are based on `CLFLUSH` instruction to flush the dirty cache lines. If your CPU ISA supports `CLWB` or `CLFLUSHOPT`, please make sure to add the proper compile options (`-DENABLE_CLFLUSHOPT=ON` or `-DENABLE_CLWB=ON`) after cmake.
-```
-$ lscpu | grep clflush
-$ lscpu | grep clflushopt
-$ lscpu | grep clwb
-```
-#### Check if your machine supports AVX-2 and BMI-2.
-```
-$ lscpu | grep avx2
-$ lscpu | grep bmi2
-```
-AVX-2 and BMI-2 are required to run HOT ([Height Optimized Trie](https://github.com/speedskater/hot)).
-If your machine does not provide those primitives, please disable HOT from `CMakeLists.txt`.
-You can complete compile and run other index structures, except for HOT.
-```
-$ vi CMakeLists.txt
-set(HOT TRUE) --> set(HOT FALSE)
-```
-
 ### Configurations for Persistent Memory 
 
 For running the indexes on Intel Optane DC Persistent Memory, we will use 
@@ -143,14 +123,15 @@ export VMMALLOC_POOL_DIR="/mnt/pmem"
 
 ### Building & Running on Persistent Memory and DRAM
 
-#### DRAM environment
 Build all
 <pre>
 $ mkdir build
 $ cd build
-$ cmake .. (<b>-DENABLE_CLFLUSH=ON</b> (default) or <b>-DENABLE_CLFLUSHOPT=ON</b> or <b>-DENABLE_CLWB=ON</b>)
+$ cmake ..
 $ make
 </pre>
+
+#### DRAM environment
 Run
 ```
 $ cd ${project root directory}
