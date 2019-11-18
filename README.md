@@ -39,7 +39,7 @@ please refer to `P-*/README.md` in each index's directory and `ycsb.cpp` as well
 - Ubuntu 18.04.1 LTS
 - At least 32GB DRAM
 - x86-64 CPU supporting at least 16 threads
-- x86-64 CPU supporting at least the AVX-2 and BMI-2 instruction sets (Haswell and newer)
+- P-HOT: x86-64 CPU supporting at least the AVX-2 and BMI-2 instruction sets (Haswell and newer)
 - Compile: cmake, g++-7, gcc-7, c++17
 
 ### Dependencies
