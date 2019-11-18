@@ -47,6 +47,7 @@ endif()
 
 if(ENABLE_AVX512)
     set(CMAKE_CXX_FLAGS "-mavx512f -mavx512vl -mavx512bw -mavx512dq -mavx512cd ${CMAKE_CXX_FLAGS}")
+    add_definitions(-DUSE_AVX512)
     message(STATUS "Looking for avx512 instruction - found")
 else()
     message(STATUS "Looking for avx512 instruction - not found")
