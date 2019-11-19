@@ -111,6 +111,9 @@ void run(char **argv) {
             uint64_t start_key = n / num_thread * (uint64_t)thread_id;
             uint64_t end_key = start_key + n / num_thread;
 
+            clht_gc_thread_init(tds[thread_id].ht, tds[thread_id].id);
+            barrier_cross(&barrier);
+
             for (uint64_t i = start_key; i < end_key; i++) {
                     uintptr_t val = clht_get(tds[thread_id].ht->ht, keys[i]);
                     if (val != keys[i]) {

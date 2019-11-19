@@ -223,8 +223,8 @@ void barrier_cross(barrier_t *b) {
 barrier_t barrier;
 /////////////////////////////////////////////////////////////////////////////////
 
-static uint64_t LOAD_SIZE = 64000000;
-static uint64_t RUN_SIZE = 64000000;
+static uint64_t LOAD_SIZE = 10000000;
+static uint64_t RUN_SIZE = 10000000;
 
 void loadKey(TID tid, Key &key) {
     return ;
@@ -1026,6 +1026,9 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
 
                 uint64_t start_key = RUN_SIZE / num_thread * (uint64_t)thread_id;
                 uint64_t end_key = start_key + RUN_SIZE / num_thread;
+
+                clht_gc_thread_init(tds[thread_id].ht, tds[thread_id].id);
+                barrier_cross(&barrier);
 
                 for (uint64_t i = start_key; i < end_key; i++) {
                     if (ops[i] == OP_INSERT) {
