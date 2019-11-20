@@ -1015,6 +1015,8 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             printf("Throughput: load, %f ,ops/us\n", (LOAD_SIZE * 1.0) / duration.count());
         }
 
+        barrier.crossing = 0;
+
         {
             // Run
             auto starttime = std::chrono::system_clock::now();

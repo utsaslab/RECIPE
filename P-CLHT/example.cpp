@@ -99,6 +99,8 @@ void run(char **argv) {
         printf("Throughput: load, %f ,ops/us\n", (n * 1.0) / duration.count());
     }
 
+    barrier.crossing = 0;
+
     {
         // Run
         auto starttime = std::chrono::system_clock::now();
