@@ -114,20 +114,20 @@ class btree{
         btree();
         ~btree() {
         }
-        void setNewRoot(char *);
-        void getNumberOfNodes();
-        void btree_insert(uint64_t, char*);
-        void btree_insert(char*, char*);
-        void btree_insert_internal(char *, uint64_t, char *, uint32_t);
-        void btree_insert_internal(char *, key_item *, char *, uint32_t);
-        void btree_delete(uint64_t);
+        void setNewRoot(char *) __attribute__((optimize(0)));
+        void getNumberOfNodes() __attribute__((optimize(0)));
+        void btree_insert(uint64_t, char*) __attribute__((optimize(0)));
+        void btree_insert(char*, char*) __attribute__((optimize(0)));
+        void btree_insert_internal(char *, uint64_t, char *, uint32_t) __attribute__((optimize(0)));
+        void btree_insert_internal(char *, key_item *, char *, uint32_t) __attribute__((optimize(0)));
+        void btree_delete(uint64_t) __attribute__((optimize(0)));
         //void btree_delete_internal
         //    (entry_key_t, char *, uint32_t, entry_key_t *, bool *, page **);
-        char *btree_search(uint64_t);
-        char *btree_search(char *);
-        void btree_search_range(uint64_t, uint64_t, unsigned long *, int, int &);
-        void btree_search_range(char *, char *, unsigned long *, int, int &);
-        key_item *make_key_item(char *, size_t, bool);
+        char *btree_search(uint64_t) __attribute__((optimize(0)));
+        char *btree_search(char *) __attribute__((optimize(0)));
+        void btree_search_range(uint64_t, uint64_t, unsigned long *, int, int &) __attribute__((optimize(0)));
+        void btree_search_range(char *, char *, unsigned long *, int, int &) __attribute__((optimize(0)));
+        key_item *make_key_item(char *, size_t, bool) __attribute__((optimize(0)));
 
         friend class page;
 };
@@ -229,7 +229,7 @@ class page{
             return ret;
         }
 
-        inline int count() {
+        inline int count() __attribute__((optimize(0))) {
             uint32_t previous_switch_counter;
             int count = 0;
             do {
@@ -255,7 +255,7 @@ class page{
             return count;
         }
 
-        inline bool remove_key(uint64_t key) {
+        inline bool remove_key(uint64_t key) __attribute__((optimize(0))) {
             // Set the switch_counter
             if(IS_FORWARD(hdr.switch_counter))
                 ++hdr.switch_counter;
@@ -293,7 +293,7 @@ class page{
             return shift;
         }
 
-        bool remove(btree* bt, uint64_t key, bool only_rebalance = false, bool with_lock = true) {
+        bool remove(btree* bt, uint64_t key, bool only_rebalance = false, bool with_lock = true) __attribute__((optimize(0))) {
             hdr.mtx->lock();
 
             bool ret = remove_key(key);
@@ -546,7 +546,7 @@ class page{
 #endif
         inline void
             insert_key(uint64_t key, char* ptr, int *num_entries, bool flush = true,
-                    bool update_last_index = true) {
+                    bool update_last_index = true) __attribute__((optimize(0))) {
                 // update switch_counter
                 if(!IS_FORWARD(hdr.switch_counter))
                     ++hdr.switch_counter;
@@ -623,7 +623,7 @@ class page{
 
         inline void
             insert_key(key_item *key, char* ptr, int *num_entries, bool flush = true,
-                    bool update_last_index = true) {
+                    bool update_last_index = true) __attribute__((optimize(0))) {
                 // update switch_counter
                 if(!IS_FORWARD(hdr.switch_counter))
                     ++hdr.switch_counter;
@@ -702,7 +702,7 @@ class page{
         // Insert a new integer key - FAST and FAIR
         page *store
             (btree* bt, char* left, uint64_t key, char* right,
-             bool flush, bool with_lock, page *invalid_sibling = NULL) {
+             bool flush, bool with_lock, page *invalid_sibling = NULL) __attribute__((optimize(0))) {
                 if(with_lock) {
                     hdr.mtx->lock(); // Lock the write lock
                 }
@@ -867,7 +867,7 @@ class page{
         // Insert a new string key - FAST and FAIR
         page *store
             (btree* bt, char* left, key_item *key, char* right,
-             bool flush, bool with_lock, page *invalid_sibling = NULL) {
+             bool flush, bool with_lock, page *invalid_sibling = NULL) __attribute__((optimize(0))) {
                 if(with_lock) {
                     hdr.mtx->lock(); // Lock the write lock
                 }
@@ -1035,7 +1035,7 @@ class page{
 
         // Search integer keys with linear search
         void linear_search_range
-            (uint64_t min, uint64_t max, unsigned long *buf, int num, int &off) {
+            (uint64_t min, uint64_t max, unsigned long *buf, int num, int &off) __attribute__((optimize(0))) {
                 int i;
                 uint32_t previous_switch_counter;
                 page *current = this;
@@ -1126,7 +1126,7 @@ class page{
 
         // Search string keys with linear search
         void linear_search_range
-            (key_item *min, key_item *max, unsigned long *buf, int num, int &off) {
+            (key_item *min, key_item *max, unsigned long *buf, int num, int &off) __attribute__((optimize(0))) {
                 int i;
                 uint32_t previous_switch_counter;
                 page *current = this;
@@ -1225,7 +1225,7 @@ class page{
                 }
             }
 
-        char *linear_search(btree *bt, uint64_t key) {
+        char *linear_search(btree *bt, uint64_t key) __attribute__((optimize(0))) {
             int i = 1;
             uint32_t previous_switch_counter;
             char *ret = NULL;
@@ -1370,7 +1370,7 @@ class page{
         }
 
 
-        char *linear_search(uint64_t key) {
+        char *linear_search(uint64_t key) __attribute__((optimize(0))) {
             int i = 1;
             uint32_t previous_switch_counter;
             char *ret = NULL;
@@ -1502,7 +1502,7 @@ class page{
             return NULL;
         }
 
-        char *linear_search(btree *bt, key_item *key) {
+        char *linear_search(btree *bt, key_item *key) __attribute__((optimize(0))) {
             int i = 1;
             uint32_t previous_switch_counter;
             char *ret = NULL;
@@ -1653,7 +1653,7 @@ class page{
             return NULL;
         }
 
-        char *linear_search(key_item *key) {
+        char *linear_search(key_item *key) __attribute__((optimize(0))) {
             int i = 1;
             uint32_t previous_switch_counter;
             char *ret = NULL;
@@ -1796,7 +1796,7 @@ class page{
 /*
  * class btree
  */
-btree::btree(){
+btree::btree() {
     root = (char*)new page();
     clflush((char *)root, sizeof(page));
     height = 1;
@@ -1822,7 +1822,7 @@ key_item *btree::make_key_item(char *key, size_t key_len, bool flush)
     return new_key;
 }
 
-char *btree::btree_search(uint64_t key){
+char *btree::btree_search(uint64_t key) {
     page* p = (page*)root;
 
     while(p->hdr.leftmost_ptr != NULL) {
@@ -1840,7 +1840,7 @@ char *btree::btree_search(uint64_t key){
     return (char *)t;
 }
 
-char *btree::btree_search(char *key){
+char *btree::btree_search(char *key) {
     page* p = (page*)root;
 
     key_item *new_item = make_key_item(key, strlen(key) + 1, false);
@@ -1861,7 +1861,7 @@ char *btree::btree_search(char *key){
 }
 
 // insert the key in the leaf node
-void btree::btree_insert(uint64_t key, char* right){ //need to be string
+void btree::btree_insert(uint64_t key, char* right) { //need to be string
     page* p = (page*)root;
 
     while(p->hdr.leftmost_ptr != NULL) {
@@ -1874,7 +1874,7 @@ void btree::btree_insert(uint64_t key, char* right){ //need to be string
 }
 
 // insert the key in the leaf node
-void btree::btree_insert(char *key, char* right){ //need to be string
+void btree::btree_insert(char *key, char* right) { //need to be string
     page* p = (page*)root;
 
     key_item *new_item = make_key_item(key, strlen(key) + 1, true);
