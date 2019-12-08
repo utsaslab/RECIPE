@@ -21,7 +21,6 @@ range scans. Therefore, it would be appropriate to be used for the applications 
 #### Build
 
 ```
-$ bash compile.sh lb
 $ mkdir build
 $ cd build
 $ cmake ..
