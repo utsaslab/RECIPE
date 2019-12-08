@@ -818,9 +818,13 @@ leaf_retry:
     fence();
 
     kx_ = l->key_lower_bound_by(key);
-
-    if (!(l->leaf_insert(this, NULL, 0, NULL, key, value, kx_, true, true, NULL))) {
-        put(key, value);
+    if (kx_.p >= 0 && l->key(kx_.p) == key) {
+        l->assign_value(kx_.p, value);
+        l->unlock();
+    } else {
+        if (!(l->leaf_insert(this, NULL, 0, NULL, key, value, kx_, true, true, NULL))) {
+            put(key, value);
+        }
     }
 }
 
@@ -916,7 +920,7 @@ leaf_retry:
         // ii)  Atomically update value for the matching key
         } else if (IS_LV(l->value(kx_.p)) && (LV_PTR(l->value(kx_.p)))->key_len == lv->key_len &&
                 memcmp(lv->fkey, (LV_PTR(l->value(kx_.p)))->fkey, lv->key_len) == 0) {
-            (LV_PTR(l->value(kx_.p)))->value = *(uint64_t *)value;
+            (LV_PTR(l->value(kx_.p)))->value = value;
             clflush((char *)&(LV_PTR(l->value(kx_.p)))->value, sizeof(void *), true);
             l->unlock();
         // iii) Allocate additional layers (B+tree's roots) up to
@@ -1197,6 +1201,7 @@ void leafnode::assign(int p, const uint64_t& key, void *value)
 void leafnode::assign_value(int p, void *value)
 {
     entry[p].value = value;
+    clflush((char *)&entry[p].value, sizeof(void *), true);
 }
 
 void *leafnode::entry_addr(int p)
