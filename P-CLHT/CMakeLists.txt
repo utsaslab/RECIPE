@@ -38,9 +38,17 @@ find_library(JemallocLib jemalloc)
 find_library(TbbLib tbb)
 find_package (Threads)
 
+if(PKG_CONFIG_FOUND)
+	pkg_check_modules(LIBPMEMOBJ++ REQUIRED libpmemobj++)
+else()
+	find_package(LIBPMEMOBJ++ REQUIRED)
+endif()
+
+link_directories(${LIBPMEMOBJ++_LIBRARY_DIRS})
+
 set(P_CLHT_TEST example.cpp src/clht_lb_res.c src/clht_gc.c
     external/sspfd/sspfd.c external/ssmem/src/ssmem.c)
 add_executable(example ${P_CLHT_TEST})
 
-target_link_libraries(example ${TbbLib} ${JemallocLib} boost_system
+target_link_libraries(example ${TbbLib} ${JemallocLib} ${LIBPMEMOBJ++_LIBRARIES} boost_system
     boost_thread pthread)

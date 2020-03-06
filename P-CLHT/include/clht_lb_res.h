@@ -36,6 +36,7 @@
 #include <inttypes.h>
 #include "atomic_ops.h"
 #include "utils.h"
+#include <libpmemobj.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -173,8 +174,10 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) clht
   {
     struct
     {
-      struct clht_hashtable_s* ht;
+      PMEMoid ht;
+      // struct clht_hashtable_s* ht;
       uint8_t next_cache_line[CACHE_LINE_SIZE - (sizeof(void*))];
+      // Prob need to add TOID to this as well
       struct clht_hashtable_s* ht_oldest;
       struct ht_ts* version_list;
       size_t version_min;
@@ -193,7 +196,8 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) clht_hashtable_s
     struct
     {
       size_t num_buckets;
-      bucket_t* table;
+      PMEMoid table;
+      //bucket_t* table;
       size_t hash;
       size_t version;
       uint8_t next_cache_line[CACHE_LINE_SIZE - (3 * sizeof(size_t)) - (sizeof(void*))];

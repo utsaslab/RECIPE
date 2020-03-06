@@ -47,7 +47,8 @@ clht_gc_thread_init(clht_t* h, int id)
   ht_ts_t* ts = (ht_ts_t*) memalign(CACHE_LINE_SIZE, sizeof(ht_ts_t));
   assert(ts != NULL);
 
-  ts->version = h->ht->version;
+  clht_hashtable_t* ht_ptr = pmemobj_direct(h->ht);
+  ts->version = ht_ptr->version;
   ts->id = id;
 
   do
@@ -128,7 +129,8 @@ clht_gc_min_version_used(clht_t* h)
 {
   volatile ht_ts_t* cur = h->version_list;
 
-  size_t min = h->ht->version;
+  clht_hashtable_t* ht_ptr = pmemobj_direct(h->ht);
+  size_t min = ht_ptr->version;
   while (cur != NULL)
     {
       if (cur->version < min)
@@ -149,8 +151,9 @@ clht_gc_min_version_used(clht_t* h)
 static int
 clht_gc_collect_cond(clht_t* hashtable, int collect_not_referenced_only)
 {
+  clht_hashtable_t* ht_ptr = pmemobj_direct(hashtable->ht);
   /* if version_min >= current version there is nothing to collect! */
-  if ((hashtable->version_min >= hashtable->ht->version) || TRYLOCK_ACQ(&hashtable->gc_lock))
+  if ((hashtable->version_min >= ht_ptr->version) || TRYLOCK_ACQ(&hashtable->gc_lock))
     {
       /* printf("** someone else is performing gc\n"); */
       return 0;
@@ -160,7 +163,7 @@ clht_gc_collect_cond(clht_t* hashtable, int collect_not_referenced_only)
 
   /* printf("[GCOLLE-%02d] LOCK  : %zu\n", GET_ID(collect_not_referenced_only), hashtable->version); */
 
-  size_t version_min = hashtable->ht->version; 
+  size_t version_min = ht_ptr->version; 
   if (collect_not_referenced_only)
     {
       version_min = clht_gc_min_version_used(hashtable);
@@ -221,7 +224,7 @@ clht_gc_free(clht_hashtable_t* hashtable)
   uint64_t bin;
   for (bin = 0; bin < num_buckets; bin++)
     {
-      bucket = hashtable->table + bin;
+      bucket = pmemobj_direct(hashtable->table) + bin;
       bucket = bucket->next;
       while (bucket != NULL)
 	{
@@ -232,7 +235,7 @@ clht_gc_free(clht_hashtable_t* hashtable)
     }
 #endif
 
-  free(hashtable->table);
+  free(pmemobj_direct(hashtable->table));
   free(hashtable);
 
   return 1;
@@ -246,7 +249,7 @@ clht_gc_destroy(clht_t* hashtable)
 {
 #if !defined(CLHT_LINKED)
   clht_gc_collect_all(hashtable);
-  clht_gc_free(hashtable->ht);
+  clht_gc_free(pmemobj_direct(hashtable->ht));
   free(hashtable);
 #endif
 
@@ -270,7 +273,7 @@ clht_gc_release(clht_hashtable_t* hashtable)
   uint64_t bin;
   for (bin = 0; bin < num_buckets; bin++)
     {
-      bucket = hashtable->table + bin;
+      bucket = pmemobj_direct(hashtable->table) + bin;
       bucket = bucket->next;
       while (bucket != NULL)
   	{
@@ -281,7 +284,7 @@ clht_gc_release(clht_hashtable_t* hashtable)
     }
 #endif
 
-  ssmem_release(clht_alloc, hashtable->table);
+  ssmem_release(clht_alloc, pmemobj_direct(hashtable->table));
   ssmem_release(clht_alloc, hashtable);
   return 1;
 }

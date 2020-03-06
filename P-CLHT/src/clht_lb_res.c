@@ -36,7 +36,26 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include <libpmemobj.h>
+
 #include "clht_lb_res.h"
+
+// TOID_DECLARE(clht_t, 1);
+// TOID_DECLARE(clht_hashtable_t, 2);
+// TOID_DECLARE(bucket_t, 3);
+// TOID_DECLARE(struct clht_hashtable_s, 4);
+
+// Initialize the persistent memory pool
+POBJ_LAYOUT_BEGIN(clht);
+POBJ_LAYOUT_ROOT(clht, struct root);
+POBJ_LAYOUT_TOID(clht, clht_t);
+POBJ_LAYOUT_TOID(clht, clht_hashtable_t);
+POBJ_LAYOUT_TOID(clht, bucket_t);
+POBJ_LAYOUT_END(clht);
+
+struct root {
+	struct clht_t *ht;
+};
 
 //#define CLHTDEBUG
 //#define CRASH_AFTER_SWAP_CLHT
@@ -71,6 +90,9 @@ __thread size_t check_ht_status_steps = CLHT_STATUS_INVOK_IN;
 	#define DEBUG_PRINT(x) do {} while (0)
 #endif
 */
+
+/* Global pool pointer */
+PMEMobjpool* pop;
 
     const char*
 clht_type_desc()
@@ -175,7 +197,13 @@ static inline void clflush_next_check(char *data, int len, bool fence)
 clht_bucket_create() 
 {
     bucket_t* bucket = NULL;
-    bucket = (bucket_t *) memalign(CACHE_LINE_SIZE, sizeof(bucket_t));
+    PMEMoid bucket_oid;
+    if (pmemobj_alloc(pop, &bucket_oid, sizeof(bucket_t), 0, 0, 0)) {
+        fprintf(stderr, "pmemobj_alloc for clht_bucket_create\n");
+        assert(0);
+	}
+    // bucket = (bucket_t *) memalign(CACHE_LINE_SIZE, sizeof(bucket_t));
+    bucket = pmemobj_direct(bucket_oid);
     if (bucket == NULL)
     {
         return NULL;
@@ -206,20 +234,39 @@ clht_bucket_create_stats(clht_hashtable_t* h, int* resize)
     return b;
 }
 
+
 clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
 
     clht_t* 
 clht_create(uint64_t num_buckets)
 {
-    clht_t* w = (clht_t*) memalign(CACHE_LINE_SIZE, sizeof(clht_t));
+    // Create a PMEM pool, open some file
+    pop = pmemobj_create("some file", POBJ_LAYOUT_NAME(clht), PMEMOBJ_MIN_POOL, 0666);
+	if (pop == NULL)
+		printf("failed to open the pool\n");
+
+    // Create the root pointer
+    PMEMoid my_root = pmemobj_root(pop, sizeof(clht_t));
+    clht_t* root_ptr = pmemobj_direct(my_root);
+    
+    // Allocate the table in persistent memory
+    if (pmemobj_alloc(pop, &root_ptr->ht, sizeof(clht_t), 0, 0, 0)) {
+        fprintf(stderr, "pmemobj_alloc for clht_create\n");
+        assert(0);
+	}
+
+    clht_t* w = root_ptr;
+
     if (w == NULL)
     {
-        printf("** malloc @ hatshtalbe\n");
+        printf("** malloc @ hashtable\n");
         return NULL;
     }
 
-    w->ht = clht_hashtable_create(num_buckets);
-    if (w->ht == NULL)
+    struct clht_hashtable_s* ht_ptr = pmemobj_direct(w->ht);
+    ht_ptr = clht_hashtable_create(num_buckets);
+
+    if (ht_ptr == NULL)
     {
         free(w);
         return NULL;
@@ -229,12 +276,14 @@ clht_create(uint64_t num_buckets)
     w->status_lock = LOCK_FREE;
     w->version_list = NULL;
     w->version_min = 0;
-    w->ht_oldest = w->ht;
+    w->ht_oldest = ht_ptr;
 
-    clflush((char *)w->ht->table, num_buckets * sizeof(bucket_t), true);
-    clflush((char *)w->ht, sizeof(clht_hashtable_t), true);
+    // Make sure to change the flushing to the correct offset given the pointer
+    clflush((char *)pmemobj_direct(ht_ptr->table), num_buckets * sizeof(bucket_t), true);
+    clflush((char *)ht_ptr, sizeof(clht_hashtable_t), true);
     clflush((char *)w, sizeof(clht_t), true);
 
+    pmemobj_close(pop);
     return w;
 }
 
@@ -249,7 +298,15 @@ clht_hashtable_create(uint64_t num_buckets)
     }
 
     /* Allocate the table itself. */
-    hashtable = (clht_hashtable_t*) memalign(CACHE_LINE_SIZE, sizeof(clht_hashtable_t));
+    // hashtable = (clht_hashtable_t*) memalign(CACHE_LINE_SIZE, sizeof(clht_hashtable_t));
+    // Allocate the table in persistent memory
+    PMEMoid ht_oid;
+    if (pmemobj_alloc(pop, &ht_oid, sizeof(clht_hashtable_t), 0, 0, 0)) {
+        fprintf(stderr, "pmemobj_alloc for clht_hashtable_create\n");
+        assert(0);
+	}
+    hashtable = pmemobj_direct(ht_oid);
+
     if (hashtable == NULL)
     {
         printf("** malloc @ hatshtalbe\n");
@@ -257,24 +314,32 @@ clht_hashtable_create(uint64_t num_buckets)
     }
 
     /* hashtable->table = calloc(num_buckets, (sizeof(bucket_t))); */
-    hashtable->table = (bucket_t*) memalign(CACHE_LINE_SIZE, num_buckets * (sizeof(bucket_t)));
-    if (hashtable->table == NULL) 
+    // hashtable->table = (bucket_t*) memalign(CACHE_LINE_SIZE, num_buckets * (sizeof(bucket_t)));
+    PMEMoid table_oid;
+    if (pmemobj_alloc(pop, &table_oid, num_buckets * sizeof(bucket_t), 0, 0, 0)) {
+        fprintf(stderr, "pmemobj_alloc for table_oid in clht_hashtable_create\n");
+        assert(0);
+	}
+    hashtable->table = table_oid;
+    bucket_t* bucket_ptr = pmemobj_direct(hashtable->table);
+
+    if (bucket_ptr == NULL) 
     {
         printf("** alloc: hashtable->table\n"); fflush(stdout);
         free(hashtable);
         return NULL;
     }
 
-    memset(hashtable->table, 0, num_buckets * (sizeof(bucket_t)));
+    memset(bucket_ptr, 0, num_buckets * (sizeof(bucket_t)));
 
     uint64_t i;
     for (i = 0; i < num_buckets; i++)
     {
-        hashtable->table[i].lock = LOCK_FREE;
+        bucket_ptr[i].lock = LOCK_FREE;
         uint32_t j;
         for (j = 0; j < ENTRIES_PER_BUCKET; j++)
         {
-            hashtable->table[i].key[j] = 0;
+            bucket_ptr[i].key[j] = 0;
         }
     }
 
@@ -316,7 +381,7 @@ clht_get(clht_hashtable_t* hashtable, clht_addr_t key)
 {
     size_t bin = clht_hash(hashtable, key);
     CLHT_GC_HT_VERSION_USED(hashtable);
-    volatile bucket_t* bucket = hashtable->table + bin;
+    volatile bucket_t* bucket = pmemobj_direct(hashtable->table) + bin;
 
     uint32_t j;
     do
@@ -369,9 +434,9 @@ bucket_exists(volatile bucket_t* bucket, clht_addr_t key)
     int
 clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
 {
-    clht_hashtable_t* hashtable = h->ht;
+    clht_hashtable_t* hashtable = pmemobj_direct(h->ht);
     size_t bin = clht_hash(hashtable, key);
-    volatile bucket_t* bucket = hashtable->table + bin;
+    volatile bucket_t* bucket = pmemobj_direct(hashtable->table) + bin;
 #if CLHT_READ_ONLY_FAIL == 1
     if (bucket_exists(bucket, key))
     {
@@ -382,10 +447,10 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
     clht_lock_t* lock = &bucket->lock;
     while (!LOCK_ACQ(lock, hashtable))
     {
-        hashtable = h->ht;
+        hashtable = pmemobj_direct(h->ht);
         size_t bin = clht_hash(hashtable, key);
 
-        bucket = hashtable->table + bin;
+        bucket = pmemobj_direct(hashtable->table) + bin;
         lock = &bucket->lock;
     }
 
@@ -467,9 +532,9 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
     clht_val_t
 clht_remove(clht_t* h, clht_addr_t key)
 {
-    clht_hashtable_t* hashtable = h->ht;
+    clht_hashtable_t* hashtable = pmemobj_direct(h->ht);
     size_t bin = clht_hash(hashtable, key);
-    volatile bucket_t* bucket = hashtable->table + bin;
+    volatile bucket_t* bucket = pmemobj_direct(hashtable->table) + bin;
 
 #if CLHT_READ_ONLY_FAIL == 1
     if (!bucket_exists(bucket, key))
@@ -481,10 +546,10 @@ clht_remove(clht_t* h, clht_addr_t key)
     clht_lock_t* lock = &bucket->lock;
     while (!LOCK_ACQ(lock, hashtable))
     {
-        hashtable = h->ht;
+        hashtable = pmemobj_direct(h->ht);
         size_t bin = clht_hash(hashtable, key);
 
-        bucket = hashtable->table + bin;
+        bucket = pmemobj_direct(hashtable->table) + bin;
         lock = &bucket->lock;
     }
 
@@ -515,7 +580,7 @@ clht_remove(clht_t* h, clht_addr_t key)
     static uint32_t
 clht_put_seq(clht_hashtable_t* hashtable, clht_addr_t key, clht_val_t val, uint64_t bin)
 {
-    volatile bucket_t* bucket = hashtable->table + bin;
+    volatile bucket_t* bucket = pmemobj_direct(hashtable->table) + bin;
     uint32_t j;
 
     do
@@ -614,7 +679,7 @@ ht_resize_help(clht_hashtable_t* h)
     /* hash = num_buckets - 1 */
     for (b = h->hash; b >= 0; b--)
     {
-        bucket_t* bu_cur = h->table + b;
+        bucket_t* bu_cur = pmemobj_direct(h->table) + b;
         if (!bucket_cpy((clht_t *)h, bu_cur, h->table_tmp))
         {	    /* reached a point where the resizer is handling */
             /* printf("[GC-%02d] helped  #buckets: %10zu = %5.1f%%\n",  */
@@ -635,7 +700,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
 
     check_ht_status_steps = CLHT_STATUS_INVOK;
 
-    clht_hashtable_t* ht_old = h->ht;
+    clht_hashtable_t* ht_old = pmemobj_direct(h->ht);
 
     if (TRYLOCK_ACQ(&h->resize_lock))
     {
@@ -667,7 +732,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     size_t b;
     for (b = 0; b < ht_old->num_buckets; b++)
     {
-        bucket_t* bu_cur = ht_old->table + b;
+        bucket_t* bu_cur = pmemobj_direct(ht_old->table) + b;
         int ret = bucket_cpy(h, bu_cur, ht_new); /* reached a point where the helper is handling */
 		if (ret == -1)
 			return -1;
@@ -715,7 +780,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
 
     mfence();
     clflush((char *)ht_new, sizeof(clht_hashtable_t), false);
-    clflush_next_check((char *)ht_new->table, num_buckets_new * sizeof(bucket_t), false);
+    clflush_next_check((char *)pmemobj_direct(ht_new->table), num_buckets_new * sizeof(bucket_t), false);
     mfence();
 
 #if defined(CRASH_BEFORE_SWAP_CLHT)
@@ -823,7 +888,7 @@ clht_size(clht_hashtable_t* hashtable)
     uint64_t bin;
     for (bin = 0; bin < num_buckets; bin++)
     {
-        bucket = hashtable->table + bin;
+        bucket = pmemobj_direct(hashtable->table) + bin;
 
         uint32_t j;
         do
@@ -853,7 +918,7 @@ ht_status(clht_t* h, int resize_increase, int just_print)
         return 0;
     }
 
-    clht_hashtable_t* hashtable = h->ht;
+    clht_hashtable_t* hashtable = pmemobj_direct(h->ht);
     uint64_t num_buckets = hashtable->num_buckets;
     volatile bucket_t* bucket = NULL;
     size_t size = 0;
@@ -863,7 +928,7 @@ ht_status(clht_t* h, int resize_increase, int just_print)
     uint64_t bin;
     for (bin = 0; bin < num_buckets; bin++)
     {
-        bucket = hashtable->table + bin;
+        bucket = pmemobj_direct(hashtable->table) + bin;
 
         int expands_cont = -1;
         expands--;
@@ -979,7 +1044,7 @@ clht_print(clht_hashtable_t* hashtable)
     uint64_t bin;
     for (bin = 0; bin < num_buckets; bin++)
     {
-        bucket = hashtable->table + bin;
+        bucket = pmemobj_direct(hashtable->table) + bin;
 
         printf("[[%05zu]] ", bin);
 
@@ -1006,7 +1071,7 @@ clht_print(clht_hashtable_t* hashtable)
 void clht_lock_initialization(clht_t *h)
 {
 	DEBUG_PRINT("Performing Lock initialization\n");
-    clht_hashtable_t *ht = h->ht;
+    clht_hashtable_t *ht = pmemobj_direct(h->ht);
     volatile bucket_t *next;
 
     h->resize_lock = LOCK_FREE;
@@ -1015,8 +1080,9 @@ void clht_lock_initialization(clht_t *h)
 
     int i;
     for (i = 0; i < ht->num_buckets; i++) {
-        ht->table[i].lock = LOCK_FREE;
-        for (next = ht->table[i].next; next != NULL; next = next->next) {
+        bucket_t* temp = pmemobj_direct(ht->table);
+        temp[i].lock = LOCK_FREE;
+        for (next = temp[i].next; next != NULL; next = next->next) {
             next->lock = LOCK_FREE;
         }
     }

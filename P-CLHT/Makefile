@@ -151,7 +151,7 @@ CFLAGS += $(PLATFORM)
 CFLAGS += $(OPTIMIZE)
 CFLAGS += $(DEBUG_FLAGS)
 
-INCLUDES := -I$(MAININCLUDE) -I$(TOP)/external/include
+INCLUDES := -I$(MAININCLUDE) -I$(TOP)/external/include 
 OBJ_FILES := clht_gc.o
 
 SRC := src

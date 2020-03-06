@@ -6,7 +6,18 @@
 #include <atomic>
 #include "tbb/tbb.h"
 
+#include <libpmemobj++/make_persistent.hpp>
+#include <libpmemobj++/p.hpp>
+#include <libpmemobj++/persistent_ptr.hpp>
+#include <libpmemobj++/pool.hpp>
+
 using namespace std;
+
+using pmem::obj::delete_persistent;
+using pmem::obj::make_persistent;
+using pmem::obj::p;
+using pmem::obj::persistent_ptr;
+using pmem::obj::pool;
 
 #include "clht.h"
 #include "ssmem.h"
