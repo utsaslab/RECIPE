@@ -40,18 +40,8 @@
 
 #include "clht_lb_res.h"
 
-// TOID_DECLARE(clht_t, 1);
-// TOID_DECLARE(clht_hashtable_t, 2);
-// TOID_DECLARE(bucket_t, 3);
-// TOID_DECLARE(struct clht_hashtable_s, 4);
-
-// Initialize the persistent memory pool
-POBJ_LAYOUT_BEGIN(clht);
-POBJ_LAYOUT_ROOT(clht, struct root);
-POBJ_LAYOUT_TOID(clht, clht_t);
-POBJ_LAYOUT_TOID(clht, clht_hashtable_t);
-POBJ_LAYOUT_TOID(clht, bucket_t);
-POBJ_LAYOUT_END(clht);
+/* Global pool pointer */
+PMEMobjpool* pop;
 
 struct root {
 	struct clht_t *ht;
@@ -91,8 +81,6 @@ __thread size_t check_ht_status_steps = CLHT_STATUS_INVOK_IN;
 #endif
 */
 
-/* Global pool pointer */
-PMEMobjpool* pop;
 
     const char*
 clht_type_desc()
@@ -198,7 +186,8 @@ clht_bucket_create()
 {
     bucket_t* bucket = NULL;
     PMEMoid bucket_oid;
-    if (pmemobj_alloc(pop, &bucket_oid, sizeof(bucket_t), 0, 0, 0)) {
+    if (pmemobj_alloc(pop, &bucket_oid, sizeof(bucket_t), 0, 0, 0)) 
+    {
         fprintf(stderr, "pmemobj_alloc for clht_bucket_create\n");
         assert(0);
 	}
@@ -240,22 +229,28 @@ clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
     clht_t* 
 clht_create(uint64_t num_buckets)
 {
-    // Create a PMEM pool, open some file
-    pop = pmemobj_create("some file", POBJ_LAYOUT_NAME(clht), PMEMOBJ_MIN_POOL, 0666);
+    // Open the PMEMpool if it exists, otherwise create it.
+    if( access("/mnt/pmem/pool", F_OK ) != -1 ) 
+    {
+        pop = pmemobj_open("/mnt/pmem/pool", POBJ_LAYOUT_NAME(clht));
+    } else 
+    {
+        pop = pmemobj_create("/mnt/pmem/pool", POBJ_LAYOUT_NAME(clht), PMEMOBJ_MIN_POOL, 0666);
+    }
+    
 	if (pop == NULL)
-		printf("failed to open the pool\n");
-
+    {
+		perror("failed to open the pool\n");
+    }
+    
     // Create the root pointer
     PMEMoid my_root = pmemobj_root(pop, sizeof(clht_t));
-    clht_t* root_ptr = pmemobj_direct(my_root);
-    
-    // Allocate the table in persistent memory
-    if (pmemobj_alloc(pop, &root_ptr->ht, sizeof(clht_t), 0, 0, 0)) {
-        fprintf(stderr, "pmemobj_alloc for clht_create\n");
-        assert(0);
-	}
+    if (pmemobj_direct(my_root) == NULL)
+    {
+        perror("root pointer is null\n");
+    } 
 
-    clht_t* w = root_ptr;
+    clht_t* w = pmemobj_direct(my_root);
 
     if (w == NULL)
     {
@@ -263,8 +258,8 @@ clht_create(uint64_t num_buckets)
         return NULL;
     }
 
-    struct clht_hashtable_s* ht_ptr = pmemobj_direct(w->ht);
-    ht_ptr = clht_hashtable_create(num_buckets);
+    struct clht_hashtable_s* ht_ptr = clht_hashtable_create(num_buckets);
+    w->ht = pmemobj_oid(ht_ptr);
 
     if (ht_ptr == NULL)
     {

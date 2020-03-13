@@ -445,6 +445,14 @@ int ht_resize_pes(clht_t* hashtable, int is_increase, int by);
 const char* clht_type_desc();
 
 void clht_lock_initialization(clht_t *h);
+
+// Initialize the persistent memory pool
+POBJ_LAYOUT_BEGIN(clht);
+POBJ_LAYOUT_ROOT(clht, clht_t);
+POBJ_LAYOUT_TOID(clht, clht_hashtable_t);
+POBJ_LAYOUT_TOID(clht, bucket_t);
+POBJ_LAYOUT_END(clht);
+
 #ifdef __cplusplus
 }
 #endif

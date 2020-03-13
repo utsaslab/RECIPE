@@ -71,7 +71,7 @@ void run(char **argv) {
     printf("operation,n,ops/s\n");
 
     clht_t *hashtable = clht_create(512);
-
+    printf("hashtable: %p\n", hashtable);
     barrier_init(&barrier, num_thread);
 
     thread_data_t *tds = (thread_data_t *) malloc(num_thread * sizeof(thread_data_t));
@@ -80,6 +80,7 @@ void run(char **argv) {
 
     {
         // Load
+        printf("the hashtable in thread: %p\n", hashtable);
         auto starttime = std::chrono::system_clock::now();
         next_thread_id.store(0);
         auto func = [&]() {
