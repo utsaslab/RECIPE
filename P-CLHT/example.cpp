@@ -6,20 +6,9 @@
 #include <atomic>
 #include "tbb/tbb.h"
 
-#include <libpmemobj++/make_persistent.hpp>
-#include <libpmemobj++/p.hpp>
-#include <libpmemobj++/persistent_ptr.hpp>
-#include <libpmemobj++/pool.hpp>
+#include <libpmemobj.h>
 
-using namespace std;
-
-using pmem::obj::delete_persistent;
-using pmem::obj::make_persistent;
-using pmem::obj::p;
-using pmem::obj::persistent_ptr;
-using pmem::obj::pool;
-
-#include "clht.h"
+#include "clht_lb_res.h"
 #include "ssmem.h"
 
 typedef struct thread_data {
@@ -72,6 +61,7 @@ void run(char **argv) {
 
     clht_t *hashtable = clht_create(512);
     printf("hashtable: %p\n", hashtable);
+
     barrier_init(&barrier, num_thread);
 
     thread_data_t *tds = (thread_data_t *) malloc(num_thread * sizeof(thread_data_t));
@@ -128,13 +118,15 @@ void run(char **argv) {
             clht_gc_thread_init(tds[thread_id].ht, tds[thread_id].id);
             barrier_cross(&barrier);
 
-            for (uint64_t i = start_key; i < end_key; i++) {
-                    uintptr_t val = clht_get(tds[thread_id].ht->ht, keys[i]);
-                    if (val != keys[i]) {
-                        std::cout << "[CLHT] wrong key read: " << val << "expected: " << keys[i] << std::endl;
-                        exit(1);
-                    }
-            }
+            // for (uint64_t i = start_key; i < end_key; i++) {
+            //         clht_t *r = tds[thread_id].ht;
+            //         struct clht_hashtable_s* ht = pmemobj_direct(r->ht);
+            //         uintptr_t val = clht_get(ht, keys[i]);
+            //         if (val != keys[i]) {
+            //             std::cout << "[CLHT] wrong key read: " << val << "expected: " << keys[i] << std::endl;
+            //             exit(1);
+            //         }
+            // }
         };
 
         std::vector<std::thread> thread_group;

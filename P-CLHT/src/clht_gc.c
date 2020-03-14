@@ -40,7 +40,6 @@ static __thread ht_ts_t* clht_ts_thread = NULL;
 void
 clht_gc_thread_init(clht_t* h, int id)
 {
-  printf("undertale\n");
   clht_alloc = (ssmem_allocator_t*) malloc(sizeof(ssmem_allocator_t));
   assert(clht_alloc != NULL);
   ssmem_alloc_init_fs_size(clht_alloc, SSMEM_DEFAULT_MEM_SIZE, SSMEM_GC_FREE_SET_SIZE, id);
@@ -239,7 +238,7 @@ clht_gc_free(clht_hashtable_t* hashtable)
 
   free(pmemobj_direct(hashtable->table));
   free(hashtable);
-
+  
   return 1;
 }
 

@@ -258,8 +258,11 @@ clht_create(uint64_t num_buckets)
         return NULL;
     }
 
-    struct clht_hashtable_s* ht_ptr = clht_hashtable_create(num_buckets);
+    clht_hashtable_t* ht_ptr = clht_hashtable_create(num_buckets);
     w->ht = pmemobj_oid(ht_ptr);
+
+    printf("orig ht: %p\n", ht_ptr);
+    printf("w->ht: %p\n", pmemobj_direct(w->ht));
 
     if (ht_ptr == NULL)
     {
@@ -278,7 +281,7 @@ clht_create(uint64_t num_buckets)
     clflush((char *)ht_ptr, sizeof(clht_hashtable_t), true);
     clflush((char *)w, sizeof(clht_t), true);
 
-    pmemobj_close(pop);
+    // pmemobj_close(pop);
     return w;
 }
 
