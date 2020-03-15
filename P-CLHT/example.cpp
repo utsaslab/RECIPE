@@ -60,7 +60,6 @@ void run(char **argv) {
     printf("operation,n,ops/s\n");
 
     clht_t *hashtable = clht_create(512);
-    printf("hashtable: %p\n", hashtable);
 
     barrier_init(&barrier, num_thread);
 
@@ -70,7 +69,6 @@ void run(char **argv) {
 
     {
         // Load
-        printf("the hashtable in thread: %p\n", hashtable);
         auto starttime = std::chrono::system_clock::now();
         next_thread_id.store(0);
         auto func = [&]() {
@@ -118,15 +116,15 @@ void run(char **argv) {
             clht_gc_thread_init(tds[thread_id].ht, tds[thread_id].id);
             barrier_cross(&barrier);
 
-            // for (uint64_t i = start_key; i < end_key; i++) {
-            //         clht_t *r = tds[thread_id].ht;
-            //         struct clht_hashtable_s* ht = pmemobj_direct(r->ht);
-            //         uintptr_t val = clht_get(ht, keys[i]);
-            //         if (val != keys[i]) {
-            //             std::cout << "[CLHT] wrong key read: " << val << "expected: " << keys[i] << std::endl;
-            //             exit(1);
-            //         }
-            // }
+            for (uint64_t i = start_key; i < end_key; i++) {
+                PMEMoid pmem_ht = (PMEMoid)((tds[thread_id].ht)->ht);
+                clht_hashtable_t *ht = (clht_hashtable_t*)pmemobj_direct(pmem_ht);
+                uintptr_t val = clht_get(ht, keys[i]);
+                if (val != keys[i]) {
+                    std::cout << "[CLHT] wrong key read: " << val << "expected: " << keys[i] << std::endl;
+                    exit(1);
+                }
+            }
         };
 
         std::vector<std::thread> thread_group;
@@ -140,7 +138,7 @@ void run(char **argv) {
                 std::chrono::system_clock::now() - starttime);
         printf("Throughput: run, %f ,ops/us\n", (n * 1.0) / duration.count());
     }
-    clht_gc_destroy(hashtable);
+    // clht_gc_destroy(hashtable);
 
     delete[] keys;
 }

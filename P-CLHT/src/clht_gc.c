@@ -48,7 +48,7 @@ clht_gc_thread_init(clht_t* h, int id)
   assert(ts != NULL);
 
   clht_hashtable_t* ht_ptr = pmemobj_direct(h->ht);
-  printf("ht_ptr: %p\n", h->ht);
+
   ts->version = ht_ptr->version;
   ts->id = id;
 
@@ -225,14 +225,16 @@ clht_gc_free(clht_hashtable_t* hashtable)
   uint64_t bin;
   for (bin = 0; bin < num_buckets; bin++)
     {
-      bucket = pmemobj_direct(hashtable->table) + bin;
+      bucket = ((bucket_t*)pmemobj_direct(hashtable->table)) + bin;
       bucket = bucket->next;
+      // printf("before the inner while\n");
       while (bucket != NULL)
-	{
-	  volatile bucket_t* cur = bucket;
-	  bucket = bucket->next;
-	  free((void*) cur);
-	}
+      {
+        volatile bucket_t* cur = bucket;
+        bucket = bucket->next;
+        // printf("CUR: %p\n", cur);
+        free((void*) cur);
+      }
     }
 #endif
 
@@ -274,7 +276,7 @@ clht_gc_release(clht_hashtable_t* hashtable)
   uint64_t bin;
   for (bin = 0; bin < num_buckets; bin++)
     {
-      bucket = pmemobj_direct(hashtable->table) + bin;
+      bucket = ((bucket_t*)pmemobj_direct(hashtable->table)) + bin;
       bucket = bucket->next;
       while (bucket != NULL)
   	{
