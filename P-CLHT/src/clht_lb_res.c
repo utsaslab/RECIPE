@@ -259,6 +259,7 @@ clht_create(uint64_t num_buckets)
     }
 
     clht_hashtable_t* ht_ptr = clht_hashtable_create(num_buckets);
+    
     w->ht = pmemobj_oid(ht_ptr);
 
     if (ht_ptr == NULL)
@@ -675,7 +676,7 @@ ht_resize_help(clht_hashtable_t* h)
     /* hash = num_buckets - 1 */
     for (b = h->hash; b >= 0; b--)
     {
-        bucket_t* bu_cur = pmemobj_direct(h->table) + b;
+        bucket_t* bu_cur = ((bucket_t*)pmemobj_direct(h->table)) + b;
         if (!bucket_cpy((clht_t *)h, bu_cur, h->table_tmp))
         {	    /* reached a point where the resizer is handling */
             /* printf("[GC-%02d] helped  #buckets: %10zu = %5.1f%%\n",  */
@@ -728,7 +729,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     size_t b;
     for (b = 0; b < ht_old->num_buckets; b++)
     {
-        bucket_t* bu_cur = pmemobj_direct(ht_old->table) + b;
+        bucket_t* bu_cur = (bucket_t*)(pmemobj_direct(ht_old->table)) + b;
         int ret = bucket_cpy(h, bu_cur, ht_new); /* reached a point where the helper is handling */
 		if (ret == -1)
 			return -1;

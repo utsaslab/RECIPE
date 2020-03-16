@@ -233,13 +233,15 @@ clht_gc_free(clht_hashtable_t* hashtable)
         volatile bucket_t* cur = bucket;
         bucket = bucket->next;
         // printf("CUR: %p\n", cur);
-        free((void*) cur);
+        PMEMoid cur_oid = pmemobj_oid(cur);
+        pmemobj_free(&cur_oid);
       }
     }
 #endif
 
-  free(pmemobj_direct(hashtable->table));
-  free(hashtable);
+  pmemobj_free(&(hashtable->table));
+  PMEMoid ht_oid = pmemobj_oid(hashtable);
+  pmemobj_free(&ht_oid);
   
   return 1;
 }

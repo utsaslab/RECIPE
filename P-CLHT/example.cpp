@@ -138,7 +138,7 @@ void run(char **argv) {
                 std::chrono::system_clock::now() - starttime);
         printf("Throughput: run, %f ,ops/us\n", (n * 1.0) / duration.count());
     }
-    // clht_gc_destroy(hashtable);
+    clht_gc_destroy(hashtable);
 
     delete[] keys;
 }
