@@ -233,14 +233,14 @@ clht_gc_free(clht_hashtable_t* hashtable)
         volatile bucket_t* cur = bucket;
         bucket = bucket->next;
         // printf("CUR: %p\n", cur);
-        PMEMoid cur_oid = pmemobj_oid(cur);
+        PMEMoid cur_oid = pmemobj_oid((void*) cur);
         pmemobj_free(&cur_oid);
       }
     }
 #endif
 
   pmemobj_free(&(hashtable->table));
-  PMEMoid ht_oid = pmemobj_oid(hashtable);
+  PMEMoid ht_oid = pmemobj_oid((void*) hashtable);
   pmemobj_free(&ht_oid);
   
   return 1;
@@ -284,13 +284,19 @@ clht_gc_release(clht_hashtable_t* hashtable)
   	{
   	  volatile bucket_t* cur = bucket;
   	  bucket = bucket->next;
-  	  ssmem_release(clht_alloc, (void*) cur);
+  	  // ssmem_release(clht_alloc, (void*) cur);
+      PMEMoid cur_oid = pmemobj_oid((void*) cur);
+      pmemobj_free(&cur_oid);
   	}
     }
 #endif
 
-  ssmem_release(clht_alloc, pmemobj_direct(hashtable->table));
-  ssmem_release(clht_alloc, hashtable);
+  // ssmem_release(clht_alloc, pmemobj_direct(hashtable->table));
+  // ssmem_release(clht_alloc, hashtable);
+  
+  pmemobj_free(&(hashtable->table));
+  PMEMoid ht_oid = pmemobj_oid((void*) hashtable);
+  pmemobj_free(&ht_oid);
   return 1;
 }
 

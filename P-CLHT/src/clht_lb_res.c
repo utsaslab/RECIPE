@@ -718,8 +718,8 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
         num_buckets_new = ht_old->num_buckets / CLHT_RATIO_HALVE;
     }
 
-    /* printf("// resizing: from %8zu to %8zu buckets\n", ht_old->num_buckets, num_buckets_new); */
-
+    printf("// resizing: from %8zu to %8zu buckets\n", ht_old->num_buckets, num_buckets_new); 
+    
     clht_hashtable_t* ht_new = clht_hashtable_create(num_buckets_new);
     ht_new->version = ht_old->version + 1;
 
