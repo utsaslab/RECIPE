@@ -230,12 +230,13 @@ clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
 clht_create(uint64_t num_buckets)
 {
     // Open the PMEMpool if it exists, otherwise create it.
+    size_t pool_size = 2*1024*1024*1024UL;
     if( access("/mnt/pmem/pool", F_OK ) != -1 ) 
     {
         pop = pmemobj_open("/mnt/pmem/pool", POBJ_LAYOUT_NAME(clht));
     } else 
     {
-        pop = pmemobj_create("/mnt/pmem/pool", POBJ_LAYOUT_NAME(clht), PMEMOBJ_MIN_POOL, 0666);
+        pop = pmemobj_create("/mnt/pmem/pool", POBJ_LAYOUT_NAME(clht), pool_size, 0666);
     }
     
 	if (pop == NULL)

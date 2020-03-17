@@ -48,7 +48,7 @@ clht_gc_thread_init(clht_t* h, int id)
   assert(ts != NULL);
 
   clht_hashtable_t* ht_ptr = pmemobj_direct(h->ht);
-
+  printf("ht_ptr: %p\n", ht_ptr);
   ts->version = ht_ptr->version;
   ts->id = id;
 
