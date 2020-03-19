@@ -292,18 +292,18 @@ clht_gc_release(clht_hashtable_t* hashtable)
   	{
   	  volatile bucket_t* cur = bucket;
   	  bucket = bucket->next;
-  	  // ssmem_release(clht_alloc, (void*) cur);
-      PMEMoid cur_oid = pmemobj_oid((void*) cur);
-      pmemobj_free(&cur_oid);
+  	  ssmem_release(clht_alloc, (void*) cur);
+      // PMEMoid cur_oid = pmemobj_oid((void*) cur);
+      // pmemobj_free(&cur_oid);
   	}
   }
 #endif
 
-  // ssmem_release(clht_alloc, pmemobj_direct(hashtable->table));
-  // ssmem_release(clht_alloc, hashtable);
-  pmemobj_free(&(hashtable->table));
-  PMEMoid ht_oid = pmemobj_oid((void*) hashtable);
-  pmemobj_free(&ht_oid);
+  ssmem_release(clht_alloc, pmemobj_direct(hashtable->table));
+  ssmem_release(clht_alloc, hashtable);
+  // pmemobj_free(&(hashtable->table));
+  // PMEMoid ht_oid = pmemobj_oid((void*) hashtable);
+  // pmemobj_free(&ht_oid);
   return 1;
 }
 
