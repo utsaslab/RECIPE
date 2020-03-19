@@ -379,7 +379,7 @@ clht_get(clht_hashtable_t* hashtable, clht_addr_t key)
     size_t bin = clht_hash(hashtable, key);
     CLHT_GC_HT_VERSION_USED(hashtable);
     volatile bucket_t* bucket = ((bucket_t*)pmemobj_direct(hashtable->table)) + bin;
-
+    
     uint32_t j;
     do
     {
@@ -694,7 +694,7 @@ ht_resize_help(clht_hashtable_t* h)
     int
 ht_resize_pes(clht_t* h, int is_increase, int by)
 {
-//    ticks s = getticks();
+   ticks s = getticks();
 
     check_ht_status_steps = CLHT_STATUS_INVOK;
 
@@ -752,7 +752,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     size_t b;
     for (b = 0; b < ht_old->num_buckets; b++)
     {
-        bucket_t* bu_cur = ht_old->table + b;
+        bucket_t* bu_cur = (bucket_t*)(pmemobj_direct(ht_old->table)) + b;
         int ret = bucket_cpy(h, bu_cur, ht_new);
 		if (ret == -1)
 			return -1;
@@ -812,7 +812,14 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
 #endif
 
 	// atomically swap the root pointer
-    SWAP_U64((uint64_t*) h, (uint64_t) ht_new);
+    // are there any race conditions?
+    PMEMoid ht_new_oid = pmemobj_oid(ht_new);
+    uint64_t ht_new_oid_off = ht_new_oid.off;
+    uint64_t h_new = (uint64_t)h + sizeof(uint64_t);
+
+    //SWAP_U64((uint64_t*) h, (uint64_t) ht_new);
+    SWAP_U64((uint64_t*)h_new, ht_new_oid_off);
+
     clflush((char *)h, sizeof(uint64_t), true);
 
 #if defined(CRASH_AFTER_SWAP_CLHT)
@@ -848,10 +855,10 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     ht_old->table_new = ht_new;
     TRYLOCK_RLS(h->resize_lock);
 
-//    ticks e = getticks() - s;
-//    double mba = (ht_new->num_buckets * 64) / (1024.0 * 1024);
-//    printf("[RESIZE-%02d] to #bu %7zu = MB: %7.2f    | took: %13llu ti = %8.6f s\n",
-//            clht_gc_get_id(), ht_new->num_buckets, mba, (unsigned long long) e, e / 2.1e9);
+   ticks e = getticks() - s;
+   double mba = (ht_new->num_buckets * 64) / (1024.0 * 1024);
+   printf("[RESIZE-%02d] to #bu %7zu = MB: %7.2f    | took: %13llu ti = %8.6f s\n",
+           clht_gc_get_id(), ht_new->num_buckets, mba, (unsigned long long) e, e / 2.1e9);
 
 #if defined(CLHTDEBUG)
 	DEBUG_PRINT("-------------ht old------------\n");
