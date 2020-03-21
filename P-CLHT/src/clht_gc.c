@@ -48,9 +48,6 @@ clht_gc_thread_init(clht_t* h, int id)
   assert(ts != NULL);
 
   clht_hashtable_t* ht_ptr = pmemobj_direct(h->ht);
-  printf("ht_ptr: %p\n", ht_ptr);
-  // printf("ht_offset: %llu\n", h->ht.off);
-  // printf("ht_uuid: %llu\n", h->ht.pool_uuid_lo);
   ts->version = ht_ptr->version;
   ts->id = id;
 
@@ -228,15 +225,12 @@ clht_gc_free(clht_hashtable_t* hashtable)
   for (bin = 0; bin < num_buckets; bin++)
     {
       bucket = ((bucket_t*)pmemobj_direct(hashtable->table)) + bin;
-      if (bin == 0)
-        printf("bucket: %p\n", bucket);
-      bucket = bucket->next;
+      bucket = pmemobj_direct(bucket->next);
       
       while (bucket != NULL)
       {
         volatile bucket_t* cur = bucket;
-        bucket = bucket->next;
-        // printf("CUR: %p\n", cur);
+        bucket = pmemobj_direct(bucket->next);
         PMEMoid cur_oid = pmemobj_oid((void*) cur);
         pmemobj_free(&cur_oid);
       }
@@ -259,12 +253,12 @@ clht_gc_destroy(clht_t* hashtable)
 #if !defined(CLHT_LINKED)
   clht_gc_collect_all(hashtable);
   clht_gc_free(pmemobj_direct(hashtable->ht));
-  PMEMoid ht_oid = pmemobj_oid((void*) hashtable);
-  pmemobj_free(&ht_oid);
+  // PMEMoid ht_oid = pmemobj_oid((void*) hashtable);
+  // pmemobj_free(&ht_oid);
 #endif
 
-  //  ssmem_alloc_term(clht_alloc);
-  free(clht_alloc);
+  // ssmem_alloc_term(clht_alloc);
+  //free(clht_alloc);
 }
 
 /* 
@@ -284,14 +278,12 @@ clht_gc_release(clht_hashtable_t* hashtable)
   for (bin = 0; bin < num_buckets; bin++)
   {
       bucket = ((bucket_t*)pmemobj_direct(hashtable->table)) + bin;
-      if (bin == 0)
-        printf("bucket: %p\n", bucket);
-      bucket = bucket->next;
+      bucket = pmemobj_direct(bucket->next);
 
       while (bucket != NULL)
   	{
   	  volatile bucket_t* cur = bucket;
-  	  bucket = bucket->next;
+  	  bucket = pmemobj_direct(bucket->next);
   	  ssmem_release(clht_alloc, (void*) cur);
       // PMEMoid cur_oid = pmemobj_oid((void*) cur);
       // pmemobj_free(&cur_oid);

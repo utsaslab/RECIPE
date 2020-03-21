@@ -59,7 +59,7 @@ void run(char **argv) {
 
     printf("operation,n,ops/s\n");
 
-    clht_t *hashtable = clht_create(512);
+    clht_t *hashtable = clht_open(512);
 
     barrier_init(&barrier, num_thread);
 
@@ -67,39 +67,39 @@ void run(char **argv) {
 
     std::atomic<int> next_thread_id;
 
-    {
-        // Load
-        auto starttime = std::chrono::system_clock::now();
-        next_thread_id.store(0);
-        auto func = [&]() {
-            int thread_id = next_thread_id.fetch_add(1);
-            tds[thread_id].id = thread_id;
-            tds[thread_id].ht = hashtable;
+    // {
+    //     // Load
+    //     auto starttime = std::chrono::system_clock::now();
+    //     next_thread_id.store(0);
+    //     auto func = [&]() {
+    //         int thread_id = next_thread_id.fetch_add(1);
+    //         tds[thread_id].id = thread_id;
+    //         tds[thread_id].ht = hashtable;
 
-            uint64_t start_key = n / num_thread * (uint64_t)thread_id;
-            uint64_t end_key = start_key + n / num_thread;
+    //         uint64_t start_key = n / num_thread * (uint64_t)thread_id;
+    //         uint64_t end_key = start_key + n / num_thread;
 
-            clht_gc_thread_init(tds[thread_id].ht, tds[thread_id].id);
-            barrier_cross(&barrier);
+    //         clht_gc_thread_init(tds[thread_id].ht, tds[thread_id].id);
+    //         barrier_cross(&barrier);
 
-            for (uint64_t i = start_key; i < end_key; i++) {
-                clht_put(tds[thread_id].ht, keys[i], keys[i]);
-            }
-        };
+    //         for (uint64_t i = start_key; i < end_key; i++) {
+    //             clht_put(tds[thread_id].ht, keys[i], keys[i]);
+    //         }
+    //     };
 
-        std::vector<std::thread> thread_group;
+    //     std::vector<std::thread> thread_group;
 
-        for (int i = 0; i < num_thread; i++)
-            thread_group.push_back(std::thread{func});
+    //     for (int i = 0; i < num_thread; i++)
+    //         thread_group.push_back(std::thread{func});
 
-        for (int i = 0; i < num_thread; i++)
-            thread_group[i].join();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-                std::chrono::system_clock::now() - starttime);
-        printf("Throughput: load, %f ,ops/us\n", (n * 1.0) / duration.count());
-    }
+    //     for (int i = 0; i < num_thread; i++)
+    //         thread_group[i].join();
+    //     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+    //             std::chrono::system_clock::now() - starttime);
+    //     printf("Throughput: load, %f ,ops/us\n", (n * 1.0) / duration.count());
+    // }
 
-    barrier.crossing = 0;
+    // barrier.crossing = 0;
 
     {
         // Run
@@ -138,7 +138,7 @@ void run(char **argv) {
                 std::chrono::system_clock::now() - starttime);
         printf("Throughput: run, %f ,ops/us\n", (n * 1.0) / duration.count());
     }
-    clht_gc_destroy(hashtable);
+    //clht_gc_destroy(hashtable);
 
     delete[] keys;
 }

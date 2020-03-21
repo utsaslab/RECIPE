@@ -161,7 +161,8 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) bucket_s
   volatile uint32_t hops;
   clht_addr_t key[ENTRIES_PER_BUCKET];
   clht_val_t val[ENTRIES_PER_BUCKET];
-  volatile struct bucket_s* next;
+  // volatile struct bucket_s* next;
+  PMEMoid next;
 } bucket_t;
 
 //#if __GNUC__ > 4 && __GNUC_MINOR__ > 4
@@ -409,6 +410,7 @@ lock_acq_rtm_chk_resize(clht_lock_t* lock, clht_hashtable_t* h)
 /* Create a new hashtable. */
 clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
 clht_t* clht_create(uint64_t num_buckets);
+clht_t* clht_open(uint64_t num_buckets);
 
 /* Insert a key-value pair into a hashtable. */
 int clht_put(clht_t* hashtable, clht_addr_t key, clht_val_t val);
