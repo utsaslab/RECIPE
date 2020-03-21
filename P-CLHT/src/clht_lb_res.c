@@ -226,12 +226,11 @@ clht_bucket_create_stats(clht_hashtable_t* h, int* resize)
 
 clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
 
-clht_t* clht_open(uint64_t num_buckets) {
+clht_t* clht_open() {
     size_t pool_size = 2*1024*1024*1024UL;
     if( access("/mnt/pmem/pool", F_OK ) != -1 ) 
     {
         pop = pmemobj_open("/mnt/pmem/pool", POBJ_LAYOUT_NAME(clht));
-        // reload the root
     } else 
     {
         perror("Pool does not already exist\n");
