@@ -3,6 +3,8 @@
         "mutex": "c",
         "shared_mutex": "c",
         "condition_variable": "c",
-        "chrono": "cpp"
+        "chrono": "cpp",
+        "random": "c",
+        "algorithm": "c"
     }
 }

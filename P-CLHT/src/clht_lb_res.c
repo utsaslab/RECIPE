@@ -180,13 +180,27 @@ static inline void clflush_next_check(char *data, int len, bool fence)
         mfence();
 }
 
+static int bucket_init(PMEMobjpool *pop_arg, void *ptr, void *arg) 
+{
+    bucket_t* bucket = ptr;
+    bucket->lock = 0;
+
+    uint32_t j;
+    for (j = 0; j < ENTRIES_PER_BUCKET; j++)
+    {
+        bucket->key[j] = 0;
+    }
+    bucket->next = OID_NULL;
+    return 0;
+}
+
 /* Create a new bucket. */
     bucket_t*
 clht_bucket_create() 
 {
     bucket_t* bucket = NULL;
     PMEMoid bucket_oid;
-    if (pmemobj_alloc(pop, &bucket_oid, sizeof(bucket_t), 0, 0, 0)) 
+    if (pmemobj_alloc(pop, &bucket_oid, sizeof(bucket_t), 0, bucket_init, 0)) 
     {
         fprintf(stderr, "pmemobj_alloc failed for clht_bucket_create\n");
         assert(0);
@@ -197,16 +211,6 @@ clht_bucket_create()
     {
         return NULL;
     }
-
-    bucket->lock = 0;
-
-    uint32_t j;
-    for (j = 0; j < ENTRIES_PER_BUCKET; j++)
-    {
-        bucket->key[j] = 0;
-    }
-    bucket->next = OID_NULL;
-
     return bucket;
 }
 
@@ -288,12 +292,12 @@ clht_create(uint64_t num_buckets)
         return NULL;
     }
 
-    clht_hashtable_t* ht_ptr;
+    clht_hashtable_t* ht_ptr = clht_hashtable_create(num_buckets);;
+    printf("clht_create ht_ptr->table.off: %d\n", ht_ptr->table.off);
 
     // Transactional allocation
     TX_BEGIN(pop) {
-        ht_ptr = clht_hashtable_create(num_buckets);
-        printf("clht_create ht_ptr->table.off: %d\n", ht_ptr->table.off);
+        //pmemobj_tx_abort(-1);
         w->ht = pmemobj_oid(ht_ptr);
     } TX_ONABORT {
         printf("Failed clht_hashtable_create, rolling back\n");
@@ -316,7 +320,6 @@ clht_create(uint64_t num_buckets)
     clflush((char *)ht_ptr, sizeof(clht_hashtable_t), true);
     clflush((char *)w, sizeof(clht_t), true);
 
-    // pmemobj_close(pop);
     return w;
 }
 
@@ -342,18 +345,18 @@ clht_hashtable_create(uint64_t num_buckets)
 
     if (hashtable == NULL)
     {
-        printf("** malloc @ hatshtalbe\n");
+        printf("** malloc @ hashtable\n");
         return NULL;
     }
 
     /* hashtable->table = calloc(num_buckets, (sizeof(bucket_t))); */
     // hashtable->table = (bucket_t*) memalign(CACHE_LINE_SIZE, num_buckets * (sizeof(bucket_t)));
     PMEMoid table_oid;
-    if (pmemobj_alloc(pop, &table_oid, num_buckets * sizeof(bucket_t), 0, 0, 0)) {
+    hashtable->table = table_oid;
+    if (pmemobj_alloc(pop, &hashtable->table, num_buckets * sizeof(bucket_t), 0, 0, 0)) {
         fprintf(stderr, "pmemobj_alloc failed for table_oid in clht_hashtable_create\n");
         assert(0);
     }
-    hashtable->table = table_oid;
     bucket_t* bucket_ptr = pmemobj_direct(hashtable->table);
 
     if (bucket_ptr == NULL) 
@@ -365,32 +368,33 @@ clht_hashtable_create(uint64_t num_buckets)
 
     memset(bucket_ptr, 0, num_buckets * (sizeof(bucket_t)));
 
-    uint64_t i;
-    for (i = 0; i < num_buckets; i++)
-    {
-        bucket_ptr[i].lock = LOCK_FREE;
-        uint32_t j;
-        for (j = 0; j < ENTRIES_PER_BUCKET; j++)
+    TX_BEGIN(pop) {
+        uint64_t i;
+        for (i = 0; i < num_buckets; i++)
         {
-            bucket_ptr[i].key[j] = 0;
+            bucket_ptr[i].lock = LOCK_FREE;
+            uint32_t j;
+            for (j = 0; j < ENTRIES_PER_BUCKET; j++)
+            {
+                bucket_ptr[i].key[j] = 0;
+            }
         }
-    }
 
-    hashtable->num_buckets = num_buckets;
-    hashtable->hash = num_buckets - 1;
-    hashtable->version = 0;
-    hashtable->table_tmp = NULL;
-    hashtable->table_new = NULL;
-    hashtable->table_prev = NULL;
-    hashtable->num_expands = 0;
-    hashtable->num_expands_threshold = (CLHT_PERC_EXPANSIONS * num_buckets);
-    if (hashtable->num_expands_threshold == 0)
-    {
-        hashtable->num_expands_threshold = 1;
-    }
-    hashtable->is_helper = 1;
-    hashtable->helper_done = 0;
-
+        hashtable->num_buckets = num_buckets;
+        hashtable->hash = num_buckets - 1;
+        hashtable->version = 0;
+        hashtable->table_tmp = NULL;
+        hashtable->table_new = NULL;
+        hashtable->table_prev = NULL;
+        hashtable->num_expands = 0;
+        hashtable->num_expands_threshold = (CLHT_PERC_EXPANSIONS * num_buckets);
+        if (hashtable->num_expands_threshold == 0)
+        {
+            hashtable->num_expands_threshold = 1;
+        }
+        hashtable->is_helper = 1;
+        hashtable->helper_done = 0;
+    } TX_END
     return hashtable;
 }
 
@@ -515,8 +519,8 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
             if (unlikely(empty == NULL))
             {
                 DPP(put_num_failed_expand);
+                bucket_t* b = clht_bucket_create_stats(hashtable, &resize);;
                 TX_BEGIN(pop) {
-                    bucket_t* b = clht_bucket_create_stats(hashtable, &resize);
                     b->val[0] = val;
 #ifdef __tile__
                     /* keep the writes in order */
@@ -527,14 +531,14 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
                     /* make sure they are visible */
                     _mm_sfence();
 #endif
+                } TX_FINALLY {
                     clflush((char *)b, sizeof(bucket_t), true);
                     bucket->next = pmemobj_oid(b);
-                    bucket_t* next_ptr = pmemobj_direct(bucket->next);
-                    
-                    clflush((char *)&next_ptr, sizeof(uintptr_t), true);
                 } TX_ONABORT {
                     printf("Failed clht_put, rolling back\n");
                 } TX_END
+                bucket_t* next_ptr = pmemobj_direct(bucket->next);
+                clflush((char *)&next_ptr, sizeof(uintptr_t), true);
             }
             else
             {
@@ -602,8 +606,11 @@ clht_remove(clht_t* h, clht_addr_t key)
             if (bucket->key[j] == key)
             {
                 clht_val_t val = bucket->val[j];
-                bucket->key[j] = 0;
-                clflush((char *)&bucket->key[j], sizeof(uintptr_t), true);
+                // May not need this, if there is a crash, remove will not be persisted
+                TX_BEGIN(pop) {
+                    bucket->key[j] = 0;
+                    clflush((char *)&bucket->key[j], sizeof(uintptr_t), true);
+                } TX_END
                 LOCK_RLS(lock);
                 return val;
             }
@@ -627,8 +634,10 @@ clht_put_seq(clht_hashtable_t* hashtable, clht_addr_t key, clht_val_t val, uint6
         {
             if (bucket->key[j] == 0)
             {
-                bucket->val[j] = val;
-                bucket->key[j] = key;
+                TX_BEGIN(pop) {
+                    bucket->val[j] = val;
+                    bucket->key[j] = key;
+                } TX_END
                 return true;
             }
         }
@@ -637,9 +646,9 @@ clht_put_seq(clht_hashtable_t* hashtable, clht_addr_t key, clht_val_t val, uint6
         {
             DPP(put_num_failed_expand);
             int null;
+            bucket->next = pmemobj_oid(clht_bucket_create());
+            bucket_t* bucket_ptr = pmemobj_direct(bucket->next);
             TX_BEGIN(pop) {
-                bucket->next = pmemobj_oid(clht_bucket_create_stats(hashtable, &null));
-                bucket_t* bucket_ptr = pmemobj_direct(bucket->next);
                 bucket_ptr->val[0] = val;
                 bucket_ptr->key[0] = key;
             } TX_ONABORT {
@@ -744,7 +753,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     check_ht_status_steps = CLHT_STATUS_INVOK;
 
     clht_hashtable_t* ht_old = pmemobj_direct(h->ht);
-
+    
     if (TRYLOCK_ACQ(&h->resize_lock))
     {
         return 0;
