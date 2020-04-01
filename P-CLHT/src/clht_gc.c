@@ -47,7 +47,7 @@ clht_gc_thread_init(clht_t* h, int id)
   ht_ts_t* ts = (ht_ts_t*) memalign(CACHE_LINE_SIZE, sizeof(ht_ts_t));
   assert(ts != NULL);
 
-  clht_hashtable_t* ht_ptr = pmemobj_direct(h->ht);
+  clht_hashtable_t* ht_ptr = clht_ptr_from_off(h->ht_off);
   ts->version = ht_ptr->version;
   ts->id = id;
 
@@ -129,7 +129,7 @@ clht_gc_min_version_used(clht_t* h)
 {
   volatile ht_ts_t* cur = h->version_list;
 
-  clht_hashtable_t* ht_ptr = pmemobj_direct(h->ht);
+  clht_hashtable_t* ht_ptr = clht_ptr_from_off(h->ht_off);
   size_t min = ht_ptr->version;
   while (cur != NULL)
     {
@@ -151,7 +151,7 @@ clht_gc_min_version_used(clht_t* h)
 static int
 clht_gc_collect_cond(clht_t* hashtable, int collect_not_referenced_only)
 {
-  clht_hashtable_t* ht_ptr = pmemobj_direct(hashtable->ht);
+  clht_hashtable_t* ht_ptr = clht_ptr_from_off(hashtable->ht_off);
   /* if version_min >= current version there is nothing to collect! */
   if ((hashtable->version_min >= ht_ptr->version) || TRYLOCK_ACQ(&hashtable->gc_lock))
     {
@@ -224,7 +224,7 @@ clht_gc_free(clht_hashtable_t* hashtable)
   uint64_t bin;
   for (bin = 0; bin < num_buckets; bin++)
     {
-      bucket = ((bucket_t*)pmemobj_direct(hashtable->table)) + bin;
+      bucket = ((bucket_t*)clht_ptr_from_off(hashtable->table_off)) + bin;
       bucket = pmemobj_direct(bucket->next);
       
       while (bucket != NULL)
@@ -237,7 +237,8 @@ clht_gc_free(clht_hashtable_t* hashtable)
     }
 #endif
 
-  pmemobj_free(&(hashtable->table));
+  PMEMoid table_oid = {pool_uuid, hashtable->table_off};
+  pmemobj_free(&(table_oid));
   PMEMoid ht_oid = pmemobj_oid((void*) hashtable);
   pmemobj_free(&ht_oid);
   
@@ -252,7 +253,7 @@ clht_gc_destroy(clht_t* hashtable)
 {
 #if !defined(CLHT_LINKED)
   clht_gc_collect_all(hashtable);
-  clht_gc_free(pmemobj_direct(hashtable->ht));
+  clht_gc_free(clht_ptr_from_off(hashtable->ht_off));
   // PMEMoid ht_oid = pmemobj_oid((void*) hashtable);
   // pmemobj_free(&ht_oid);
 #endif
@@ -277,7 +278,7 @@ clht_gc_release(clht_hashtable_t* hashtable)
   uint64_t bin;
   for (bin = 0; bin < num_buckets; bin++)
   {
-      bucket = ((bucket_t*)pmemobj_direct(hashtable->table)) + bin;
+      bucket = ((bucket_t*)clht_ptr_from_off(hashtable->table_off)) + bin;
       bucket = pmemobj_direct(bucket->next);
 
       while (bucket != NULL)
@@ -291,7 +292,7 @@ clht_gc_release(clht_hashtable_t* hashtable)
   }
 #endif
 
-  ssmem_release(clht_alloc, pmemobj_direct(hashtable->table));
+  ssmem_release(clht_alloc, clht_ptr_from_off(hashtable->table_off));
   ssmem_release(clht_alloc, hashtable);
   // pmemobj_free(&(hashtable->table));
   // PMEMoid ht_oid = pmemobj_oid((void*) hashtable);

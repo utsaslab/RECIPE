@@ -175,7 +175,8 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) clht
   {
     struct
     {
-      PMEMoid ht;
+      // PMEMoid ht;
+      uint64_t ht_off;
       // struct clht_hashtable_s* ht;
       uint8_t next_cache_line[CACHE_LINE_SIZE - (sizeof(void*))];
       // Prob need to add TOID to this as well
@@ -197,7 +198,8 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) clht_hashtable_s
     struct
     {
       size_t num_buckets;
-      PMEMoid table;
+      // PMEMoid table;
+      uint64_t table_off;
       //bucket_t* table;
       size_t hash;
       size_t version;
@@ -412,6 +414,7 @@ clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
 clht_t* clht_create(uint64_t num_buckets);
 clht_t* clht_open();
 
+
 /* Insert a key-value pair into a hashtable. */
 int clht_put(clht_t* hashtable, clht_addr_t key, clht_val_t val);
 
@@ -454,6 +457,10 @@ POBJ_LAYOUT_ROOT(clht, clht_t);
 POBJ_LAYOUT_TOID(clht, clht_hashtable_t);
 POBJ_LAYOUT_TOID(clht, bucket_t);
 POBJ_LAYOUT_END(clht);
+
+/* Global pool uuid */
+uint64_t pool_uuid;
+void* clht_ptr_from_off(uint64_t offset);
 
 #ifdef __cplusplus
 }
