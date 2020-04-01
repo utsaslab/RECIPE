@@ -172,8 +172,8 @@ static inline void clflush_next_check(char *data, int len, bool fence)
 #elif CLWB
         asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(ptr)));
 #endif
-		if (pmemobj_direct( ((bucket_t *)data)->next ) )
-            clflush_next_check((char *)pmemobj_direct( ((bucket_t *)data)->next ), sizeof(bucket_t), false);
+		if (clht_ptr_from_off( ((bucket_t *)data)->next_off ) )
+            clflush_next_check((char *)clht_ptr_from_off( ((bucket_t *)data)->next_off ), sizeof(bucket_t), false);
         while(read_tsc() < etsc) cpu_pause();
     }
     if (fence)
@@ -196,7 +196,7 @@ static int bucket_init(PMEMobjpool *pop_arg, void *ptr, void *arg)
     {
         bucket->key[j] = 0;
     }
-    bucket->next = OID_NULL;
+    bucket->next_off = OID_NULL.off;
     return 0;
 }
 
@@ -449,7 +449,7 @@ clht_get(clht_hashtable_t* hashtable, clht_addr_t key)
                 }
             }
         }
-        bucket = pmemobj_direct(bucket->next);
+        bucket = clht_ptr_from_off(bucket->next_off);
     }
     while (unlikely(bucket != NULL));
     return 0;
@@ -468,7 +468,7 @@ bucket_exists(volatile bucket_t* bucket, clht_addr_t key)
                 return true;
             }
         }
-        bucket = pmemobj_direct(bucket->next);
+        bucket = clht_ptr_from_off(bucket->next_off);
     } 
     while (unlikely(bucket != NULL));
     return false;
@@ -522,7 +522,7 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
         }
         
         int resize = 0;
-        if (likely(pmemobj_direct(bucket->next) == NULL))
+        if (likely(clht_ptr_from_off(bucket->next_off) == NULL))
         {
             if (unlikely(empty == NULL))
             {
@@ -541,11 +541,11 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
 #endif
                 } TX_FINALLY {
                     clflush((char *)b, sizeof(bucket_t), true);
-                    bucket->next = pmemobj_oid(b);
+                    bucket->next_off = pmemobj_oid(b).off;
                 } TX_ONABORT {
                     printf("Failed clht_put, rolling back\n");
                 } TX_END
-                bucket_t* next_ptr = pmemobj_direct(bucket->next);
+                bucket_t* next_ptr = clht_ptr_from_off(bucket->next_off);
                 clflush((char *)&next_ptr, sizeof(uintptr_t), true);
             }
             else
@@ -571,7 +571,7 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
             }
             return true;
         }
-        bucket = pmemobj_direct(bucket->next);
+        bucket = clht_ptr_from_off(bucket->next_off);
     }
     while (true);
     
@@ -623,7 +623,7 @@ clht_remove(clht_t* h, clht_addr_t key)
                 return val;
             }
         }
-        bucket = pmemobj_direct(bucket->next);
+        bucket = clht_ptr_from_off(bucket->next_off);
     }
     while (unlikely(bucket != NULL));
     LOCK_RLS(lock);
@@ -650,12 +650,12 @@ clht_put_seq(clht_hashtable_t* hashtable, clht_addr_t key, clht_val_t val, uint6
             }
         }
 
-        if (pmemobj_direct(bucket->next) == NULL)
+        if (clht_ptr_from_off(bucket->next_off) == NULL)
         {
             DPP(put_num_failed_expand);
             int null;
-            bucket->next = pmemobj_oid(clht_bucket_create());
-            bucket_t* bucket_ptr = pmemobj_direct(bucket->next);
+            bucket->next_off = pmemobj_oid(clht_bucket_create()).off;
+            bucket_t* bucket_ptr = clht_ptr_from_off(bucket->next_off);
             TX_BEGIN(pop) {
                 bucket_ptr->val[0] = val;
                 bucket_ptr->key[0] = key;
@@ -665,7 +665,7 @@ clht_put_seq(clht_hashtable_t* hashtable, clht_addr_t key, clht_val_t val, uint6
             return true;
         }
 
-        bucket = pmemobj_direct(bucket->next);
+        bucket = clht_ptr_from_off(bucket->next_off);
     }
     while (true);
 }
@@ -719,7 +719,7 @@ bucket_cpy(clht_t* h, volatile bucket_t* bucket, clht_hashtable_t* ht_new)
                 clht_put_seq(ht_new, key, bucket->val[j], bin);
             }
         }
-        bucket = pmemobj_direct(bucket->next);
+        bucket = clht_ptr_from_off(bucket->next_off);
     }
     while (bucket != NULL);
 
@@ -970,7 +970,7 @@ clht_size(clht_hashtable_t* hashtable)
                 }
             }
 
-            bucket = pmemobj_direct(bucket->next);
+            bucket = clht_ptr_from_off(bucket->next_off);
         }
         while (bucket != NULL);
     }
@@ -1013,7 +1013,7 @@ ht_status(clht_t* h, int resize_increase, int just_print)
                 }
             }
 
-            bucket = pmemobj_direct(bucket->next);
+            bucket = clht_ptr_from_off(bucket->next_off);
         }
         while (bucket != NULL);
 
@@ -1136,7 +1136,7 @@ clht_print(clht_hashtable_t* hashtable)
                 }
             }
 
-            bucket = pmemobj_direct(bucket->next);
+            bucket = clht_ptr_from_off(bucket->next_off);
             printf(" ** -> ");
         }
         while (bucket != NULL);
@@ -1159,7 +1159,7 @@ void clht_lock_initialization(clht_t *h)
     for (i = 0; i < ht->num_buckets; i++) {
         bucket_t* temp = clht_ptr_from_off(ht->table_off);
         temp[i].lock = LOCK_FREE;
-        for (next = pmemobj_direct(temp[i].next); next != NULL; next = pmemobj_direct(next->next)) {
+        for (next = clht_ptr_from_off(temp[i].next_off); next != NULL; next = clht_ptr_from_off(next->next_off)) {
             next->lock = LOCK_FREE;
         }
     }

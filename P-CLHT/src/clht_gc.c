@@ -225,12 +225,12 @@ clht_gc_free(clht_hashtable_t* hashtable)
   for (bin = 0; bin < num_buckets; bin++)
     {
       bucket = ((bucket_t*)clht_ptr_from_off(hashtable->table_off)) + bin;
-      bucket = pmemobj_direct(bucket->next);
+      bucket = clht_ptr_from_off(bucket->next_off);
       
       while (bucket != NULL)
       {
         volatile bucket_t* cur = bucket;
-        bucket = pmemobj_direct(bucket->next);
+        bucket = clht_ptr_from_off(bucket->next_off);
         PMEMoid cur_oid = pmemobj_oid((void*) cur);
         pmemobj_free(&cur_oid);
       }
@@ -279,12 +279,12 @@ clht_gc_release(clht_hashtable_t* hashtable)
   for (bin = 0; bin < num_buckets; bin++)
   {
       bucket = ((bucket_t*)clht_ptr_from_off(hashtable->table_off)) + bin;
-      bucket = pmemobj_direct(bucket->next);
+      bucket = clht_ptr_from_off(bucket->next_off);
 
       while (bucket != NULL)
   	{
   	  volatile bucket_t* cur = bucket;
-  	  bucket = pmemobj_direct(bucket->next);
+  	  bucket = clht_ptr_from_off(bucket->next_off);
   	  ssmem_release(clht_alloc, (void*) cur);
       // PMEMoid cur_oid = pmemobj_oid((void*) cur);
       // pmemobj_free(&cur_oid);
