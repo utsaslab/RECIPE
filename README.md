@@ -166,7 +166,7 @@ For artifact evaluation, we will evaluate again the performance of the index str
 Just for performance testing on real PM, you can use [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html), 
 which transparently converts all the dynamic memory allocations into Persistent Memory allocations.
 However, if you want to apply RECIPE indexes into your real PM application, you would need to change current volatile 
-memory allocators using [libpmem](https://pmem.io/pmdk/) APIs.
+memory allocators using [libpmem](https://pmem.io/pmdk/) APIs. Currently, a version of RECIPE is being developed using the PMDK library (check the "pmdk" branch!) 
 
 2. Current implementations only ensure the lowest level of isolation (Read Uncommitted) when using them for transactional systems, 
 since they are based on normal CASs and temporal stores coupled with cache line flush instructions. However, you may extend them

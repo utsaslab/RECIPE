@@ -316,12 +316,15 @@ clht_create(uint64_t num_buckets)
         free(w);
         return NULL;
     }
-    w->resize_lock = LOCK_FREE;
-    w->gc_lock = LOCK_FREE;
-    w->status_lock = LOCK_FREE;
-    w->version_list = NULL;
-    w->version_min = 0;
-    w->ht_oldest = ht_ptr;
+
+    TX_BEGIN(pop) {
+        w->resize_lock = LOCK_FREE;
+        w->gc_lock = LOCK_FREE;
+        w->status_lock = LOCK_FREE;
+        w->version_list = NULL;
+        w->version_min = 0;
+        w->ht_oldest = ht_ptr;
+    } TX_END
 
     // This should flush everything to persistent memory
     clflush((char *)clht_ptr_from_off(ht_ptr->table_off), num_buckets * sizeof(bucket_t), true);
@@ -364,7 +367,9 @@ clht_hashtable_create(uint64_t num_buckets)
         fprintf(stderr, "pmemobj_alloc failed for table_oid in clht_hashtable_create\n");
         assert(0);
     }
-    hashtable->table_off = table_oid.off;
+    TX_BEGIN(pop) {
+        hashtable->table_off = table_oid.off;
+    } TX_END
     bucket_t* bucket_ptr = clht_ptr_from_off(hashtable->table_off);
 
     if (bucket_ptr == NULL) 
