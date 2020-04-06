@@ -81,6 +81,7 @@ __thread size_t check_ht_status_steps = CLHT_STATUS_INVOK_IN;
 #endif
 */
 
+#define PMDK_TRANSACTION    1
 
     const char*
 clht_type_desc()
@@ -300,16 +301,23 @@ clht_create(uint64_t num_buckets)
         return NULL;
     }
 
-    clht_hashtable_t* ht_ptr = clht_hashtable_create(num_buckets);;
-    printf("clht_create ht_ptr->table.off: %d\n", ht_ptr->table_off);
+    clht_hashtable_t* ht_ptr;
 
     // Transactional allocation
+#if PMDK_TRANSACTION 
     TX_BEGIN(pop) {
+        ht_ptr= clht_hashtable_create(num_buckets);
+        printf("clht_create ht_ptr->table.off: %d\n", ht_ptr->table_off);
         //pmemobj_tx_abort(-1);
         w->ht_off = pmemobj_oid(ht_ptr).off;
     } TX_ONABORT {
         printf("Failed clht_hashtable_create, rolling back\n");
     } TX_END;
+#else
+    ht_ptr= clht_hashtable_create(num_buckets);
+    printf("clht_create ht_ptr->table.off: %d\n", ht_ptr->table_off);
+    w->ht_off = pmemobj_oid(ht_ptr).off;
+#endif
 
     if (ht_ptr == NULL)
     {
@@ -317,14 +325,12 @@ clht_create(uint64_t num_buckets)
         return NULL;
     }
 
-    TX_BEGIN(pop) {
-        w->resize_lock = LOCK_FREE;
-        w->gc_lock = LOCK_FREE;
-        w->status_lock = LOCK_FREE;
-        w->version_list = NULL;
-        w->version_min = 0;
-        w->ht_oldest = ht_ptr;
-    } TX_END
+    w->resize_lock = LOCK_FREE;
+    w->gc_lock = LOCK_FREE;
+    w->status_lock = LOCK_FREE;
+    w->version_list = NULL;
+    w->version_min = 0;
+    w->ht_oldest = ht_ptr;
 
     // This should flush everything to persistent memory
     clflush((char *)clht_ptr_from_off(ht_ptr->table_off), num_buckets * sizeof(bucket_t), true);
@@ -367,9 +373,9 @@ clht_hashtable_create(uint64_t num_buckets)
         fprintf(stderr, "pmemobj_alloc failed for table_oid in clht_hashtable_create\n");
         assert(0);
     }
-    TX_BEGIN(pop) {
-        hashtable->table_off = table_oid.off;
-    } TX_END
+
+    hashtable->table_off = table_oid.off;
+
     bucket_t* bucket_ptr = clht_ptr_from_off(hashtable->table_off);
 
     if (bucket_ptr == NULL) 
@@ -381,33 +387,32 @@ clht_hashtable_create(uint64_t num_buckets)
 
     memset(bucket_ptr, 0, num_buckets * (sizeof(bucket_t)));
 
-    TX_BEGIN(pop) {
-        uint64_t i;
-        for (i = 0; i < num_buckets; i++)
+    uint64_t i;
+    for (i = 0; i < num_buckets; i++)
+    {
+        bucket_ptr[i].lock = LOCK_FREE;
+        uint32_t j;
+        for (j = 0; j < ENTRIES_PER_BUCKET; j++)
         {
-            bucket_ptr[i].lock = LOCK_FREE;
-            uint32_t j;
-            for (j = 0; j < ENTRIES_PER_BUCKET; j++)
-            {
-                bucket_ptr[i].key[j] = 0;
-            }
+            bucket_ptr[i].key[j] = 0;
         }
+    }
 
-        hashtable->num_buckets = num_buckets;
-        hashtable->hash = num_buckets - 1;
-        hashtable->version = 0;
-        hashtable->table_tmp = NULL;
-        hashtable->table_new = NULL;
-        hashtable->table_prev = NULL;
-        hashtable->num_expands = 0;
-        hashtable->num_expands_threshold = (CLHT_PERC_EXPANSIONS * num_buckets);
-        if (hashtable->num_expands_threshold == 0)
-        {
-            hashtable->num_expands_threshold = 1;
-        }
-        hashtable->is_helper = 1;
-        hashtable->helper_done = 0;
-    } TX_END
+    hashtable->num_buckets = num_buckets;
+    hashtable->hash = num_buckets - 1;
+    hashtable->version = 0;
+    hashtable->table_tmp = NULL;
+    hashtable->table_new = NULL;
+    hashtable->table_prev = NULL;
+    hashtable->num_expands = 0;
+    hashtable->num_expands_threshold = (CLHT_PERC_EXPANSIONS * num_buckets);
+    if (hashtable->num_expands_threshold == 0)
+    {
+        hashtable->num_expands_threshold = 1;
+    }
+    hashtable->is_helper = 1;
+    hashtable->helper_done = 0;
+
     return hashtable;
 }
 
@@ -532,8 +537,10 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
             if (unlikely(empty == NULL))
             {
                 DPP(put_num_failed_expand);
-                bucket_t* b = clht_bucket_create_stats(hashtable, &resize);;
+                bucket_t* b;
+#if PMDK_TRANSACTION
                 TX_BEGIN(pop) {
+                    b = clht_bucket_create_stats(hashtable, &resize);
                     b->val[0] = val;
 #ifdef __tile__
                     /* keep the writes in order */
@@ -550,8 +557,23 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
                 } TX_ONABORT {
                     printf("Failed clht_put, rolling back\n");
                 } TX_END
+#else
+                b = clht_bucket_create_stats(hashtable, &resize);
+                b->val[0] = val;
+#ifdef __tile__
+                /* keep the writes in order */
+                _mm_sfence();
+#endif
+                b->key[0] = key;
+#ifdef __tile__
+                /* make sure they are visible */
+                mm_sfence();
+#endif
+                clflush((char *)b, sizeof(bucket_t), true);
+                bucket->next_off = pmemobj_oid(b).off;
                 bucket_t* next_ptr = clht_ptr_from_off(bucket->next_off);
                 clflush((char *)&next_ptr, sizeof(uintptr_t), true);
+#endif
             }
             else
             {
@@ -620,10 +642,15 @@ clht_remove(clht_t* h, clht_addr_t key)
             {
                 clht_val_t val = bucket->val[j];
                 // May not need this, if there is a crash, remove will not be persisted
+#if PMDK_TRANSACTION                
                 TX_BEGIN(pop) {
                     bucket->key[j] = 0;
                     clflush((char *)&bucket->key[j], sizeof(uintptr_t), true);
                 } TX_END
+#else
+                bucket->key[j] = 0;
+                clflush((char *)&bucket->key[j], sizeof(uintptr_t), true);
+#endif
                 LOCK_RLS(lock);
                 return val;
             }
@@ -647,10 +674,15 @@ clht_put_seq(clht_hashtable_t* hashtable, clht_addr_t key, clht_val_t val, uint6
         {
             if (bucket->key[j] == 0)
             {
+#if PMDK_TRANSACTION
                 TX_BEGIN(pop) {
                     bucket->val[j] = val;
                     bucket->key[j] = key;
                 } TX_END
+#else
+                bucket->val[j] = val;
+                bucket->key[j] = key;
+#endif
                 return true;
             }
         }
@@ -661,12 +693,17 @@ clht_put_seq(clht_hashtable_t* hashtable, clht_addr_t key, clht_val_t val, uint6
             int null;
             bucket->next_off = pmemobj_oid(clht_bucket_create()).off;
             bucket_t* bucket_ptr = clht_ptr_from_off(bucket->next_off);
+#if PMDK_TRANSACTION            
             TX_BEGIN(pop) {
                 bucket_ptr->val[0] = val;
                 bucket_ptr->key[0] = key;
             } TX_ONABORT {
                 printf("Failed clht_put_seq, rolling back\n");
             } TX_END
+#else
+            bucket_ptr->val[0] = val;
+            bucket_ptr->key[0] = key;
+#endif
             return true;
         }
 
@@ -1041,11 +1078,15 @@ ht_status(clht_t* h, int resize_increase, int just_print)
         {
 //            printf("[STATUS-%02d] #bu: %7zu / #elems: %7zu / full%%: %8.4f%% / expands: %4d / max expands: %2d\n",
 //                    clht_gc_get_id(), hashtable->num_buckets, size, full_ratio, expands, expands_max);
+#if PMDK_TRANSACTION            
             TX_BEGIN(pop) {
                 ht_resize_pes(h, 0, 33);
             } TX_ONABORT {
                 printf("Failed ht_resize_pes, rolling back\n");
             } TX_END
+#else
+            ht_resize_pes(h, 0, 33);
+#endif
         }
         else if ((full_ratio > 0 && full_ratio > CLHT_PERC_FULL_DOUBLE) || expands_max > CLHT_MAX_EXPANSIONS ||
                 resize_increase)
@@ -1061,11 +1102,15 @@ ht_status(clht_t* h, int resize_increase, int just_print)
             }
 			DEBUG_PRINT("Callig ht_resize_pes\n");
             int ret = 0;
+#if PMDK_TRANSACTION
             TX_BEGIN(pop) {
                 ret = ht_resize_pes(h, 1, inc_by_pow2);
             } TX_ONABORT {
                 printf("Failed ht_resize_pes, rolling back\n");
             } TX_END;
+#else
+            ret = ht_resize_pes(h, 1, inc_by_pow2);
+#endif
 			// return if crashed
 			if (ret == -1)
 				return 0;

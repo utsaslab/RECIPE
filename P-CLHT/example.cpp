@@ -120,7 +120,7 @@ void run(char **argv) {
                 clht_hashtable_t *ht = (clht_hashtable_t*)clht_ptr_from_off((tds[thread_id].ht)->ht_off);
                 uintptr_t val = clht_get(ht, keys[i]);
                 if (val != keys[i]) {
-                    std::cout << "[CLHT] wrong key read: " << val << "expected: " << keys[i] << std::endl;
+                    std::cout << "[CLHT] wrong key read: " << val << " expected: " << keys[i] << std::endl;
                     exit(1);
                 }
             }

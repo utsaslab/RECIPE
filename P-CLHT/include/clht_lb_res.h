@@ -180,7 +180,6 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) clht
       uint64_t ht_off;
       // struct clht_hashtable_s* ht;
       uint8_t next_cache_line[CACHE_LINE_SIZE - (sizeof(void*))];
-      // Prob need to add TOID to this as well
       struct clht_hashtable_s* ht_oldest;
       struct ht_ts* version_list;
       size_t version_min;
