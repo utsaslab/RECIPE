@@ -7,6 +7,17 @@ This branch of P-CLHT uses PMDK to ensure the persistence and recoverability of 
 **How We Used PMDK** The entire conversion required us to replace any data structure pointers to point to the persistent memory pool using the non-transactional, atomic allocation functions such as `pmemobj_alloc`. Since the `PMEMoid` structs (which store the pool offset and id) were 16 bytes, some code manipulation was required to ensure the cache-line alignment of the data structure. Finally, transactions were used for major hashtable operations such as insertion, resizing, and deletion. This part is still being tested and is a work-in-progress. If you look through the code and compare it with the `master` branch, you can see that the changes follow a logical pattern, and the modifications are relatively minor. 
 
 **How to test recoverability?** The best way to recover your hashtable is following the paradigm presented in `clht_open` where all the user has to do is use `pmemobj_root` to recover the root (a clht_t object basically) of the persistent memory pool. Please make sure that you are opening the same pool with the correct pool layout! 
+```
+...
+PMEMoid my_root = pmemobj_root(pop, sizeof(clht_t));
+if (pmemobj_direct(my_root) == NULL)
+{
+    perror("root pointer is null\n");
+} 
+...
+clht_t* w = pmemobj_direct(my_root);
+...
+```
 
 ## Build & Run
 ### How to enable PM?
@@ -22,7 +33,20 @@ $ cd ..
 $ sudo mount -o dax /dev/pmem0 /mnt/pmem
 ```
 
-3.  Set pool_size and pool name in clht_lb_res.c. TODO: instructions to set up environment variables instead.
+3.  Set pool_size and pool name appropriately using `pmemobj_open` or `pmemobj_create`. For example:
+```
+// Size of the memory pool
+size_t pool_size = 2*1024*1024*1024UL;
+if( access("/mnt/pmem/pool", F_OK ) != -1 ) 
+{
+    // If the pool already exists, open it
+    pop = pmemobj_open("/mnt/pmem/pool", POBJ_LAYOUT_NAME(clht));
+} else 
+{
+    // If the pool does not exist, create it
+    pop = pmemobj_create("/mnt/pmem/pool", POBJ_LAYOUT_NAME(clht), pool_size, 0666);
+}
+```
 
 4. Make accordingly and run the example. 
 
