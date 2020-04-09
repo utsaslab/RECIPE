@@ -33,7 +33,7 @@ endif()
 find_library(JemallocLib jemalloc)
 find_library(TbbLib tbb)
 
-set(P_MASS_TEST example.cpp)
+set(P_MASS_TEST example.cpp masstree.cpp)
 add_executable(example ${P_MASS_TEST})
 
 target_link_libraries(example ${JemallocLib} ${TbbLib} atomic boost_system boost_thread)
