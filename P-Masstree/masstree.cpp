@@ -2,6 +2,10 @@
 
 namespace masstree {
 
+/* Global pool pointer */
+PMEMobjpool *pop;
+uint64_t pool_uuid;
+
 static constexpr uint64_t CACHE_LINE_SIZE = 64;
 static uint64_t CPU_FREQ_MHZ = 2100;
 static unsigned long write_latency = 0;
@@ -56,6 +60,12 @@ static inline void prefetch_(const void *ptr)
     asm volatile("prefetcht0 %0" : : "m" (*(const cacheline_t *)ptr));
 }
 
+static inline void *ptr_from_off(uint64_t offset)
+{
+    PMEMoid oid = {pool_uuid, offset};
+    return pmemobj_direct(oid);
+}
+
 #ifdef LOCK_INIT
 static tbb::concurrent_vector<std::mutex *> lock_initializer;
 void lock_initialization()
@@ -67,23 +77,48 @@ void lock_initialization()
 }
 #endif
 
-masstree::masstree() {
+masstree::masstree () {
     leafnode *init_root = new leafnode(0);
-    root_ = init_root;
-    clflush((char *)root_, sizeof(leafnode), true);
+    root_ = pmemobj_oid(init_root).off;
+    clflush((char *)ptr_from_off(root_), sizeof(leafnode), true);
 }
 
 masstree::masstree (void *new_root) {
-    root_ = new_root;
-    clflush((char *)root_, sizeof(leafnode), true);      // 304 is the leafnode size of masstree
+    root_ = pmemobj_oid(new_root).off;
+    clflush((char *)ptr_from_off(root_), sizeof(leafnode), true);      // 304 is the leafnode size of masstree
+}
+
+void *masstree::operator new(size_t size) {
+    // Open the PMEMpool if it exists, otherwise create it.
+    size_t pool_size = 2*1024*1024*1024UL;
+    if (access("/mnt/pmem/pool", F_OK) != -1)
+        pop = pmemobj_open("/mnt/pmem/pool", POBJ_LAYOUT_NAME(p_masstree));
+    else
+        pop = pmemobj_create("/mnt/pmem/pool", "p_masstree", pool_size, 0666);
+
+    if (pop == NULL)
+        perror("failed to open the pool\n");
+
+    // Create the root pointer
+    PMEMoid my_root = pmemobj_root(pop, size);
+    if (pmemobj_direct(my_root) == NULL)
+        perror("root pointer is null\n");
+    pool_uuid = my_root.pool_uuid_lo;
+
+    return pmemobj_direct(my_root);
 }
 
 leafnode::leafnode(uint32_t level) : permutation(permuter::make_empty()) {
     level_ = level;
     version_ = 0;
-    wlock = new std::mutex();
-    next = NULL;
-    leftmost_ptr = NULL;
+    PMEMoid ret;
+    if (pmemobj_zalloc(pop, &ret, sizeof(PMEMmutex), 0)) {
+        fprintf(stderr, "pmemobj_zalloc failed for lock allocation\n");
+        assert(0);
+    }
+    wlock = ret.off;
+    next = 0;
+    leftmost_ptr = 0;
     highest = 0;
 #ifdef LOCK_INIT
     lock_initializer.push_back(wlock);
@@ -93,13 +128,18 @@ leafnode::leafnode(uint32_t level) : permutation(permuter::make_empty()) {
 leafnode::leafnode(void *left, uint64_t key, void *right, uint32_t level = 1) : permutation(permuter::make_empty()) {
     level_ = level;
     version_ = 0;
-    wlock = new std::mutex();
-    next = NULL;
+    PMEMoid ret;
+    if (pmemobj_zalloc(pop, &ret, sizeof(PMEMmutex), 0)) {
+        fprintf(stderr, "pmemobj_zalloc failed for lock allocation\n");
+        assert(0);
+    }
+    wlock = ret.off;
+    next = 0;
     highest = 0;
 
-    leftmost_ptr = reinterpret_cast<leafnode *> (left);
+    leftmost_ptr = pmemobj_oid(left).off;
     entry[0].key = key;
-    entry[0].value = right;
+    entry[0].value = pmemobj_oid(right).off;
 
     permutation = permuter::make_sorted(1);
 #ifdef LOCK_INIT
@@ -108,16 +148,19 @@ leafnode::leafnode(void *left, uint64_t key, void *right, uint32_t level = 1) : 
 }
 
 void *leafnode::operator new(size_t size) {
-    void *ret;
-    posix_memalign(&ret, CACHE_LINE_SIZE, size);
-    return ret;
+    PMEMoid ret;
+    if (pmemobj_alloc(pop, &ret, size, 0, 0, 0)) {
+        fprintf(stderr, "pmemobj_alloc failed for leaf allocation\n");
+        assert(0);
+    }
+    return pmemobj_direct(ret);
 }
 
-void leafnode::lock() {wlock->lock();}
+void leafnode::lock() {pmemobj_mutex_lock(pop, (PMEMmutex *)ptr_from_off(wlock));}
 
-void leafnode::unlock() {wlock->unlock();}
+void leafnode::unlock() {pmemobj_mutex_unlock(pop, (PMEMmutex *)ptr_from_off(wlock));}
 
-bool leafnode::trylock() {return wlock->try_lock();}
+int leafnode::trylock() {return pmemobj_mutex_trylock(pop, (PMEMmutex *)ptr_from_off(wlock));}
 
 int leafnode::compare_key(const uint64_t a, const uint64_t b)
 {
@@ -169,7 +212,8 @@ leafnode *leafnode::advance_to_key(const uint64_t& key, bool checker)
     const leafnode *n = this;
 
     leafnode *next;
-    if ((next = n->next) && compare_key(key, next->highest) >= 0) {
+    if ((next = reinterpret_cast<leafnode *>(ptr_from_off(n->next)))
+            && compare_key(key, next->highest) >= 0) {
 //        if (!checker) {
 //            printf("Reader must not come here\n");
 //            exit(0);
@@ -204,11 +248,15 @@ void leafnode::prefetch() const
 
 leafvalue *masstree::make_leaf(char *key, size_t key_len, uint64_t value)
 {
-    void *aligned_alloc;
     size_t len = (key_len % sizeof(uint64_t)) == 0 ? key_len : (((key_len) / sizeof(uint64_t)) + 1) * sizeof(uint64_t);
 
-    posix_memalign(&aligned_alloc, CACHE_LINE_SIZE, sizeof(leafvalue) + len + sizeof(uint64_t));
-    leafvalue *lv = reinterpret_cast<leafvalue *> (aligned_alloc);
+    PMEMoid ret;
+    if (pmemobj_alloc(pop, &ret, sizeof(leafvalue) + len + sizeof(uint64_t), 0, 0, 0)) {
+        fprintf(stderr, "pmemobj_alloc failed for leaf allocation\n");
+        assert(0);
+    }
+
+    leafvalue *lv = reinterpret_cast<leafvalue *> (pmemobj_direct(ret));
     memset(lv, 0, sizeof(leafvalue) + len + sizeof(uint64_t));
 
     lv->value = value;
@@ -225,11 +273,15 @@ leafvalue *masstree::make_leaf(char *key, size_t key_len, uint64_t value)
 
 leafvalue *leafnode::smallest_leaf(size_t key_len, uint64_t value)
 {
-    void *aligned_alloc;
     size_t len = (key_len % sizeof(uint64_t)) == 0 ? key_len : (((key_len) / sizeof(uint64_t)) + 1) * sizeof(uint64_t);
 
-    posix_memalign(&aligned_alloc, CACHE_LINE_SIZE, sizeof(leafvalue) + len);
-    leafvalue *lv = reinterpret_cast<leafvalue *> (aligned_alloc);
+    PMEMoid ret;
+    if (pmemobj_alloc(pop, &ret, sizeof(leafvalue) + len, 0, 0, 0)) {
+        fprintf(stderr, "pmemobj_alloc failed for leaf allocation\n");
+        assert(0);
+    }
+
+    leafvalue *lv = reinterpret_cast<leafvalue *> (pmemobj_direct(ret));
     memset(lv, 0, sizeof(leafvalue) + len);
 
     lv->value = value;
@@ -255,7 +307,7 @@ void leafnode::make_new_layer(leafnode *l, key_indexed_position &kx_, leafvalue 
         leafnode *nl = new leafnode(0);
         nl->assign_initialize_for_layer(0, olv->fkey[depth]);
         if (twig_head != l)
-            twig_tail->entry[0].value = nl;
+            twig_tail->entry[0].value = pmemobj_oid(nl).off;
         else
             twig_head = nl;
         nl->permutation = permuter::make_sorted(1);
@@ -265,30 +317,30 @@ void leafnode::make_new_layer(leafnode *l, key_indexed_position &kx_, leafvalue 
     }
 
     leafnode *nl = new leafnode(0);
-    nl->assign_initialize(0, kcmp < 0 ? olv->fkey[depth] : nlv->fkey[depth], kcmp < 0 ? SET_LV(olv) : SET_LV(nlv));
-    nl->assign_initialize(1, kcmp < 0 ? nlv->fkey[depth] : olv->fkey[depth], kcmp < 0 ? SET_LV(nlv) : SET_LV(olv));
+    nl->assign_initialize(0, kcmp < 0 ? olv->fkey[depth] : nlv->fkey[depth], kcmp < 0 ? SET_LV(pmemobj_oid(olv).off) : SET_LV(pmemobj_oid(nlv).off));
+    nl->assign_initialize(1, kcmp < 0 ? nlv->fkey[depth] : olv->fkey[depth], kcmp < 0 ? SET_LV(pmemobj_oid(nlv).off) : SET_LV(pmemobj_oid(olv).off));
 
     nl->permutation = permuter::make_sorted(2);
 
     fence();
     if (twig_tail != l)
-        twig_tail->entry[0].value = nl;
+        twig_tail->entry[0].value = pmemobj_oid(nl).off;
     twig_tail = nl;
     if (twig_head != l) {
         leafnode *iter = twig_head;
         mfence();
-        for ( ; iter != twig_tail && iter != NULL; iter = reinterpret_cast <leafnode *>(iter->entry[0].value)) {
+        for ( ; iter != twig_tail && iter != NULL; iter = reinterpret_cast <leafnode *>(ptr_from_off(iter->entry[0].value))) {
             clflush((char *)iter, sizeof(leafnode), false);
         }
         clflush((char *)twig_tail, sizeof(leafnode), false);
         mfence();
 
-        l->entry[kx_.p].value = twig_head;
+        l->entry[kx_.p].value = pmemobj_oid(twig_head).off;
         clflush((char *)l->entry_addr(kx_.p) + 8, sizeof(uintptr_t), true);
     } else {
         clflush((char *)nl, sizeof(leafnode), true);
 
-        l->entry[kx_.p].value = nl;
+        l->entry[kx_.p].value = pmemobj_oid(nl).off;
         clflush((char *)l->entry_addr(kx_.p) + 8, sizeof(uintptr_t), true);
     }
 }
@@ -313,10 +365,10 @@ void leafnode::check_for_recovery(masstree *t, leafnode *left, leafnode *right, 
     if (depth > 0) {
         key_indexed_position pkx_;
         leafnode *p = correct_layer_root(root, lv, depth, pkx_);
-        if (p->value(pkx_.p) == left) {
+        if (p->value(pkx_.p) == pmemobj_oid(left).off) {
             leafnode *new_root = new leafnode(left, right->highest, right, left->level() + 1);
             clflush((char *) new_root, sizeof(leafnode), true);
-            p->entry[pkx_.p].value = new_root;
+            p->entry[pkx_.p].value = pmemobj_oid(new_root).off;
             clflush((char *) &p->entry[pkx_.p].value, sizeof(uintptr_t), true);
             p->unlock();
 
@@ -324,10 +376,10 @@ void leafnode::check_for_recovery(masstree *t, leafnode *left, leafnode *right, 
             left->unlock();
         } else {
             root = p;
-            t->split(p->entry[pkx_.p].value, root, depth, lv, right->highest, right, left->level() + 1, left);
+            t->split(ptr_from_off(p->entry[pkx_.p].value), root, depth, lv, right->highest, right, left->level() + 1, left);
         }
     } else {
-        if (t->root() == left) {
+        if (t->root() == pmemobj_oid(left).off) {
             leafnode *new_root = new leafnode(left, right->highest, right, left->level() + 1);
             clflush((char *) new_root, sizeof(leafnode), true);
             t->setNewRoot(new_root);
@@ -347,14 +399,14 @@ void masstree::put(uint64_t key, void *value)
     leafnode *next;
 
 from_root:
-    leafnode *p = reinterpret_cast<leafnode *> (this->root_);
+    leafnode *p = reinterpret_cast<leafnode *> (ptr_from_off(this->root_));
     while (p->level() != 0) {
 inter_retry:
         next = p->advance_to_key(key, true);
         if (next != p) {
             // check for recovery
-            if (p->trylock()) {
-                if (next->trylock())
+            if (p->trylock() == 0) {
+                if (next->trylock() == 0)
                     p->check_for_recovery(this, p, next, NULL, 0, NULL);
                 else
                     p->unlock();
@@ -368,19 +420,19 @@ inter_retry:
 
         kx_ = p->key_lower_bound(key);
 
-        void *snapshot_v;
+        uint64_t snapshot_v;
         if (kx_.i >= 0) {
             snapshot_v = p->value(kx_.p);
             fence();
             if (p->key(kx_.p) <= key) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else {
                     goto inter_retry;
                 }
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
@@ -389,8 +441,8 @@ leaf_retry:
     next = l->advance_to_key(key, true);
     if (next != l) {
         //check for recovery
-        if (l->trylock()) {
-            if (next->trylock())
+        if (l->trylock() == 0) {
+            if (next->trylock() == 0)
                 l->check_for_recovery(this, l, next, NULL, 0, NULL);
             else
                 l->unlock();
@@ -430,7 +482,7 @@ leaf_retry:
 void masstree::put(char *key, uint64_t value)
 {
 restart:
-    void *root = this->root_;
+    void *root = ptr_from_off(this->root_);
     key_indexed_position kx_;
     uint32_t depth = 0;
     leafnode *next;
@@ -444,8 +496,8 @@ inter_retry:
         next = p->advance_to_key(lv->fkey[depth], true);
         if (next != p) {
             // check for recovery
-            if (p->trylock()) {
-                if (next->trylock())
+            if (p->trylock() == 0) {
+                if (next->trylock() == 0)
                     p->check_for_recovery(this, p, next, root, depth, lv);
                 else
                     p->unlock();
@@ -459,19 +511,19 @@ inter_retry:
 
         kx_ = p->key_lower_bound(lv->fkey[depth]);
 
-        void *snapshot_v;
+        uint64_t snapshot_v;
         if (kx_.i >= 0) {
             snapshot_v = p->value(kx_.p);
             fence();
             if (p->key(kx_.p) <= lv->fkey[depth]) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else {
                     goto inter_retry;
                 }
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
@@ -480,8 +532,8 @@ leaf_retry:
     next = l->advance_to_key(lv->fkey[depth], true);
     if (next != l) {
         //check for recovery
-        if (l->trylock()) {
-            if (next->trylock())
+        if (l->trylock() == 0) {
+            if (next->trylock() == 0)
                 l->check_for_recovery(this, l, next, root, depth, lv);
             else
                 l->unlock();
@@ -511,27 +563,27 @@ leaf_retry:
     if (kx_.p >= 0) {
         // i)   If there is additional layer, retry B+tree traversing from the next layer
         if (!IS_LV(l->value(kx_.p))) {
-            p = reinterpret_cast<leafnode *> (l->value(kx_.p));
+            p = reinterpret_cast<leafnode *> (ptr_from_off(l->value(kx_.p)));
             root = l;
             depth++;
             l->unlock();
             goto from_root;
         // ii)  Atomically update value for the matching key
-        } else if (IS_LV(l->value(kx_.p)) && (LV_PTR(l->value(kx_.p)))->key_len == lv->key_len &&
-                memcmp(lv->fkey, (LV_PTR(l->value(kx_.p)))->fkey, lv->key_len) == 0) {
-            (LV_PTR(l->value(kx_.p)))->value = value;
-            clflush((char *)&(LV_PTR(l->value(kx_.p)))->value, sizeof(void *), true);
+        } else if (IS_LV(l->value(kx_.p)) && ((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->key_len == lv->key_len &&
+                memcmp(lv->fkey, ((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->fkey, lv->key_len) == 0) {
+            ((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->value = value;
+            clflush((char *)&((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->value, sizeof(void *), true);
             l->unlock();
         // iii) Allocate additional layers (B+tree's roots) up to
         //      the number of common prefixes (8bytes unit).
         //      Insert two keys to the leafnode in the last layer
         //      During these processes, this leafnode must be locked
         } else {
-            l->make_new_layer(l, kx_, LV_PTR(l->value(kx_.p)), lv, ++depth);
+            l->make_new_layer(l, kx_, ((leafvalue *)ptr_from_off(LV_PTR(l->value(kx_.p)))), lv, ++depth);
             l->unlock();
         }
     } else {
-        if (!(l->leaf_insert(this, root, depth, lv, lv->fkey[depth], SET_LV(lv), kx_, true, true, NULL))) {
+        if (!(l->leaf_insert(this, root, depth, lv, lv->fkey[depth], SET_LV(pmemobj_oid(lv).off), kx_, true, true, NULL))) {
             put(key, value);
         }
     }
@@ -539,11 +591,11 @@ leaf_retry:
 
 void masstree::del(uint64_t key)
 {
-    void *root = this->root_;
+    void *root = ptr_from_off(this->root_);
     key_indexed_position kx_;
     uint32_t depth = 0;
     leafnode *next;
-    void *snapshot_v;
+    uint64_t snapshot_v;
 
     leafnode *p = reinterpret_cast<leafnode *> (root);
     while (p->level() != 0) {
@@ -551,8 +603,8 @@ inter_retry:
         next = p->advance_to_key(key, true);
         if (next != p) {
             // check for recovery
-            if (p->trylock()) {
-                if (next->trylock())
+            if (p->trylock() == 0) {
+                if (next->trylock() == 0)
                     p->check_for_recovery(this, p, next, NULL, 0, NULL);
                 else
                     p->unlock();
@@ -570,12 +622,12 @@ inter_retry:
             fence();
             if (p->key(kx_.p) <= key) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else
                     goto inter_retry;
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
@@ -584,8 +636,8 @@ leaf_retry:
     next = l->advance_to_key(key, true);
     if (next != l) {
         //check for recovery
-        if (l->trylock()) {
-            if (next->trylock())
+        if (l->trylock() == 0) {
+            if (next->trylock() == 0)
                 l->check_for_recovery(this, l, next, NULL, 0, NULL);
             else
                 l->unlock();
@@ -617,7 +669,7 @@ leaf_retry:
 
 void masstree::del(char *key)
 {
-    void *root = this->root_;
+    void *root = ptr_from_off(this->root_);
     key_indexed_position kx_;
     uint32_t depth = 0;
     leafnode *next;
@@ -631,8 +683,8 @@ inter_retry:
         next = p->advance_to_key(lv->fkey[depth], true);
         if (next != p) {
             // check for recovery
-            if (p->trylock()) {
-                if (next->trylock())
+            if (p->trylock() == 0) {
+                if (next->trylock() == 0)
                     p->check_for_recovery(this, p, next, root, depth, lv);
                 else
                     p->unlock();
@@ -646,19 +698,19 @@ inter_retry:
 
         kx_ = p->key_lower_bound(lv->fkey[depth]);
 
-        void *snapshot_v;
+        uint64_t snapshot_v;
         if (kx_.i >= 0) {
             snapshot_v = p->value(kx_.p);
             fence();
             if (p->key(kx_.p) <= lv->fkey[depth]) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else {
                     goto inter_retry;
                 }
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
@@ -667,8 +719,8 @@ leaf_retry:
     next = l->advance_to_key(lv->fkey[depth], true);
     if (next != l) {
         //check for recovery
-        if (l->trylock()) {
-            if (next->trylock())
+        if (l->trylock() == 0) {
+            if (next->trylock() == 0)
                 l->check_for_recovery(this, l, next, root, depth, lv);
             else
                 l->unlock();
@@ -693,14 +745,14 @@ leaf_retry:
     if (kx_.p >= 0) {
         // i)   If there is additional layer, retry B+tree traversing from the next layer
         if (!IS_LV(l->value(kx_.p))) {
-            p = reinterpret_cast<leafnode *> (l->value(kx_.p));
+            p = reinterpret_cast<leafnode *> (ptr_from_off(l->value(kx_.p)));
             root = l;
             depth++;
             l->unlock();
             goto from_root;
         // ii)  Checking false-positive result and starting to delete it
-        } else if (IS_LV(l->value(kx_.p)) && (LV_PTR(l->value(kx_.p)))->key_len == lv->key_len &&
-                memcmp(lv->fkey, (LV_PTR(l->value(kx_.p)))->fkey, lv->key_len) == 0) {
+        } else if (IS_LV(l->value(kx_.p)) && ((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->key_len == lv->key_len &&
+                memcmp(lv->fkey, ((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->fkey, lv->key_len) == 0) {
             if (!(l->leaf_delete(this, root, depth, lv, lv->fkey[depth], kx_, true, true, NULL))) {
                 del(key);
             }
@@ -717,7 +769,7 @@ leaf_retry:
 inline void leafnode::assign_initialize(int p, const uint64_t& key, void *value)
 {
     entry[p].key = key;
-    entry[p].value = value;
+    entry[p].value = (uint64_t) value;
 }
 
 inline void leafnode::assign_initialize(int p, leafnode *x, int xp)
@@ -756,8 +808,8 @@ int leafnode::split_into(leafnode *nr, int p, const uint64_t& key, void *value, 
     nr->highest = nr->entry[0].key;
     nr->next = this->next;
     clflush((char *)nr, sizeof(leafnode), true);
-    this->next = nr;
-    clflush((char *)(&this->next), sizeof(uintptr_t), true);
+    this->next = pmemobj_oid(nr).off;
+    clflush((char *)(&this->next), sizeof(uint64_t), true);
 
     split_key = nr->highest;
     return p >= mid ? 1 + (mid == LEAF_WIDTH) : 0;
@@ -779,12 +831,12 @@ void leafnode::split_into_inter(leafnode *nr, int p, const uint64_t& key, void *
     nr->permutation = permr.value();
 
     //leafnode::link_split(this, nr);
-    nr->leftmost_ptr = reinterpret_cast<leafnode *>(this->entry[perml[mid - 1]].value);
+    nr->leftmost_ptr = this->entry[perml[mid - 1]].value;
     nr->highest = this->entry[perml[mid - 1]].key;
     nr->next = this->next;
     clflush((char *)nr, sizeof(leafnode), true);
-    this->next = nr;
-    clflush((char *)(&this->next), sizeof(uintptr_t), true);
+    this->next = pmemobj_oid(nr).off;
+    clflush((char *)(&this->next), sizeof(uint64_t), true);
 
     split_key = nr->highest;
     //return p >= mid ? 1 + (mid == LEAF_WIDTH) : 0;
@@ -794,13 +846,15 @@ void leafnode::assign(int p, const uint64_t& key, void *value)
 {
     entry[p].key = key;
     fence();
-    entry[p].value = value;
+    // TODO: Need to add an identifier about which DIMM includes this value
+    entry[p].value = (uint64_t) value;
 }
 
 void leafnode::assign_value(int p, void *value)
 {
-    entry[p].value = value;
-    clflush((char *)&entry[p].value, sizeof(void *), true);
+    // TODO: Need to add identifier about which DIMM includes this value
+    entry[p].value = (uint64_t) value;
+    clflush((char *)&entry[p].value, sizeof(uint64_t), true);
 }
 
 void *leafnode::entry_addr(int p)
@@ -810,8 +864,8 @@ void *leafnode::entry_addr(int p)
 
 void masstree::setNewRoot(void *new_root)
 {
-    this->root_ = new_root;
-    clflush((char *)&this->root_, sizeof(void *), true);
+    this->root_ = pmemobj_oid(new_root).off;
+    clflush((char *)&this->root_, sizeof(uint64_t), true);
 }
 
 leafnode *leafnode::correct_layer_root(void *root, leafvalue *lv, uint32_t depth, key_indexed_position &pkx_)
@@ -865,24 +919,24 @@ inter_retry:
 
         kx_ = p->key_lower_bound(key);
 
-        void *snapshot_v;
+        uint64_t snapshot_v;
         if (kx_.i >= 0) {
             snapshot_v = p->value(kx_.p);
             fence();
             if (p->key(kx_.p) <= key) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else {
                     goto inter_retry;
                 }
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
 leaf_retry:
-    if (p->trylock()) {
+    if (p->trylock() == 0) {
         next = p->advance_to_key(key, true);
         if (next != p) {
             p->unlock();
@@ -933,9 +987,10 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
         //     2) replay the original split process from the third step that removes the half of
         //        the entries from the left sibling. (this would be more reasonable in terms of
         //        reusing the existing split mechanism)
-        if (this->next != NULL && this->key(this->permutation[this->permutation.size() - 1]) > this->next->highest) {
-            this->next = this->next->next;
-            clflush((char *)&this->next, sizeof(leafnode *), true);
+        if (this->next != 0 && this->key(this->permutation[this->permutation.size() - 1])
+                > ((leafnode *)ptr_from_off(this->next))->highest) {
+            this->next = ((leafnode *)ptr_from_off(this->next))->next;
+            clflush((char *)&this->next, sizeof(uint64_t), true);
         }
 
         leafnode *new_sibling = new leafnode(this->level_);
@@ -960,18 +1015,18 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
         if (depth > 0) {
             key_indexed_position pkx_;
             leafnode *p = correct_layer_root(root, lv, depth, pkx_);
-            if (p->value(pkx_.p) == this) {
+            if (p->value(pkx_.p) == pmemobj_oid(this).off) {
                 leafnode *new_root = new leafnode(this, split_key, new_sibling, level_ + 1);
                 clflush((char *) new_root, sizeof(leafnode), true);
-                p->entry[pkx_.p].value = new_root;
+                p->entry[pkx_.p].value = pmemobj_oid(new_root).off;
                 clflush((char *) &p->entry[pkx_.p].value, sizeof(uintptr_t), true);
                 p->unlock();
             } else {
                 root = p;
-                t->split(p->entry[pkx_.p].value, root, depth, lv, split_key, new_sibling, level_ + 1, NULL);
+                t->split(ptr_from_off(p->entry[pkx_.p].value), root, depth, lv, split_key, new_sibling, level_ + 1, NULL);
             }
         } else {
-            if (t->root() == this) {
+            if (t->root() == pmemobj_oid(this).off) {
                 leafnode *new_root = new leafnode(this, split_key, new_sibling, level_ + 1);
                 clflush((char *) new_root, sizeof(leafnode), true);
                 t->setNewRoot(new_root);
@@ -1036,7 +1091,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
         if (depth > 0) {
             key_indexed_position pkx_;
             leafnode *p = correct_layer_root(root, lv, depth, pkx_);
-            if (p->value(pkx_.p) == nr) {
+            if (p->value(pkx_.p) == pmemobj_oid(nr).off) {
                 cp = nr->permutation.value();
                 cp = cp.make_empty();
                 fence();
@@ -1046,17 +1101,17 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
                 nr->unlock();
                 return nr;
             } else {
-                nl = search_for_leftsibling(p->entry[pkx_.p].value, nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
-                merge_state = t->merge(p->entry[pkx_.p].value, reinterpret_cast<void *> (p), depth, lv, nr->highest, nr->level_ + 1, NULL);
+                nl = search_for_leftsibling(ptr_from_off(p->entry[pkx_.p].value), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
+                merge_state = t->merge(ptr_from_off(p->entry[pkx_.p].value), reinterpret_cast<void *> (p), depth, lv, nr->highest, nr->level_ + 1, NULL);
                 if (merge_state == 16) {
                     p = correct_layer_root(root, lv, depth, pkx_);
-                    p->entry[pkx_.p].value = nr;
+                    p->entry[pkx_.p].value = pmemobj_oid(nr).off;
                     clflush((char *)&p->entry[pkx_.p].value, sizeof(void *), true);
                     p->unlock();
                 }
             }
         } else {
-            if (t->root() == nr) {
+            if (t->root() == pmemobj_oid(nr).off) {
                 cp = nr->permutation.value();
                 cp = cp.make_empty();
                 fence();
@@ -1065,7 +1120,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
                 nr->unlock();
                 return nr;
             } else {
-                nl = search_for_leftsibling(t->root(), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
+                nl = search_for_leftsibling(ptr_from_off(t->root()), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
                 merge_state = t->merge(NULL, NULL, 0, NULL, nr->highest, nr->level_ + 1, NULL);
                 if (merge_state == 16)
                     t->setNewRoot(nr);
@@ -1105,7 +1160,7 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
     // permutation based insert
     if (this->permutation.size() < LEAF_WIDTH) {
         kx_.p = this->permutation.back();
-        this->assign(kx_.p, key, value);
+        this->assign(kx_.p, key, (void *)pmemobj_oid(value).off);
         clflush((char *)(&this->entry[kx_.p]), sizeof(kv), true);
 
         permuter cp = this->permutation.value();
@@ -1115,7 +1170,7 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
         clflush((char *)(&this->permutation), sizeof(permuter), true);
 
         if (child != NULL) {
-            child->next->unlock();
+            ((leafnode *)ptr_from_off(child->next))->unlock();
             child->unlock();
         }
 
@@ -1137,9 +1192,10 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
         //     2) replay the original split process from the third step that removes the half of
         //        the entries from the left sibling. (this would be more reasonable in terms of
         //        reusing the existing split mechanism)
-        if (this->next != NULL && this->key(this->permutation[this->permutation.size() - 1]) > this->next->highest) {
-            this->next = this->next->next;
-            clflush((char *)&this->next, sizeof(leafnode *), true);
+        if (this->next != 0 && this->key(this->permutation[this->permutation.size() - 1])
+                > ((leafnode *)ptr_from_off(this->next))->highest) {
+            this->next = ((leafnode *)ptr_from_off(this->next))->next;
+            clflush((char *)&this->next, sizeof(uint64_t), true);
         }
 
         leafnode *new_sibling = new leafnode(this->level_);
@@ -1164,7 +1220,7 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
 
         if (key < split_key) {
             kx_.p = nl->permutation.back();
-            nl->assign(kx_.p, key, value);
+            nl->assign(kx_.p, key, (void *)pmemobj_oid(value).off);
             clflush((char *)(&nl->entry[kx_.p]), sizeof(kv), true);
 
             permuter cp = nl->permutation.value();
@@ -1177,7 +1233,7 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
         } else {
             kx_ = nr->key_lower_bound_by(key);
             kx_.p = nr->permutation.back();
-            nr->assign(kx_.p, key, value);
+            nr->assign(kx_.p, key, (void *)pmemobj_oid(value).off);
             clflush((char *)(&nr->entry[kx_.p]), sizeof(kv), true);
 
             permuter cp = nr->permutation.value();
@@ -1191,33 +1247,33 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
 
         // lock coupling (hand-over-hand locking)
         if (child != NULL) {
-            child->next->unlock();
+            ((leafnode *)ptr_from_off(child->next))->unlock();
             child->unlock();
         }
 
         if (depth > 0) {
             key_indexed_position pkx_;
             leafnode *p = correct_layer_root(root, lv, depth, pkx_);
-            if (p->value(pkx_.p) == this) {
+            if (p->value(pkx_.p) == pmemobj_oid(this).off) {
                 leafnode *new_root = new leafnode(this, split_key, new_sibling, level_ + 1);
                 clflush((char *) new_root, sizeof(leafnode), true);
-                p->entry[pkx_.p].value = new_root;
-                clflush((char *) &p->entry[pkx_.p].value, sizeof(uintptr_t), true);
+                p->entry[pkx_.p].value = pmemobj_oid(new_root).off;
+                clflush((char *) &p->entry[pkx_.p].value, sizeof(uint64_t), true);
                 p->unlock();
 
-                this->next->unlock();
+                ((leafnode *)ptr_from_off(this->next))->unlock();
                 this->unlock();
             } else {
                 root = p;
-                t->split(p->entry[pkx_.p].value, root, depth, lv, split_key, new_sibling, level_ + 1, this);
+                t->split(ptr_from_off(p->entry[pkx_.p].value), root, depth, lv, split_key, new_sibling, level_ + 1, this);
             }
         } else {
-            if (t->root() == this) {
+            if (t->root() == pmemobj_oid(this).off) {
                 leafnode *new_root = new leafnode(this, split_key, new_sibling, level_ + 1);
                 clflush((char *) new_root, sizeof(leafnode), true);
                 t->setNewRoot(new_root);
 
-                this->next->unlock();
+                ((leafnode *)ptr_from_off(this->next))->unlock();
                 this->unlock();
             } else {
                 t->split(NULL, NULL, 0, NULL, split_key, new_sibling, level_ + 1, this);
@@ -1255,22 +1311,22 @@ int leafnode::inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *l
         if (depth > 0) {
             key_indexed_position pkx_;
             leafnode *p = correct_layer_root(root, lv, depth, pkx_);
-            if (p->value(pkx_.p) == nr) {
+            if (p->value(pkx_.p) == pmemobj_oid(nr).off) {
                 kx_.i = 16;
                 p->unlock();
                 nr->unlock();
                 return (ret = kx_.i);
             } else {
-                nl = search_for_leftsibling(p->entry[pkx_.p].value, nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
-                merge_state = t->merge(p->entry[pkx_.p].value, root, depth, lv, nr->highest, nr->level_ + 1, nl);
+                nl = search_for_leftsibling(ptr_from_off(p->entry[pkx_.p].value), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
+                merge_state = t->merge(ptr_from_off(p->entry[pkx_.p].value), root, depth, lv, nr->highest, nr->level_ + 1, nl);
             }
         } else {
-            if (t->root() == nr) {
+            if (t->root() == pmemobj_oid(nr).off) {
                 kx_.i = 16;
                 nr->unlock();
                 return (ret = kx_.i);
             } else {
-                nl = search_for_leftsibling(t->root(), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
+                nl = search_for_leftsibling(ptr_from_off(t->root()), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
                 merge_state = t->merge(NULL, NULL, 0, NULL, nr->highest, nr->level_ + 1, nl);
             }
         }
@@ -1308,9 +1364,9 @@ void masstree::split(void *left, void *root, uint32_t depth, leafvalue *lv,
         p = reinterpret_cast<leafnode *> (left);
         reinterpret_cast<leafnode *> (root)->unlock();
     } else {
-        if (level > reinterpret_cast<leafnode *>(root_)->level())
+        if (level > reinterpret_cast<leafnode *>(ptr_from_off(root_))->level())
             return ;
-        p = reinterpret_cast<leafnode *> (root_);
+        p = reinterpret_cast<leafnode *> (ptr_from_off(root_));
     }
 
     while (p->level() > level) {
@@ -1326,19 +1382,19 @@ inter_retry:
 
         kx_ = p->key_lower_bound(key);
 
-        void *snapshot_v;
+        uint64_t snapshot_v;
         if (kx_.i >= 0) {
             snapshot_v = p->value(kx_.p);
             fence();
             if (p->key(kx_.p) <= key) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else {
                     goto inter_retry;
                 }
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
@@ -1375,7 +1431,7 @@ int masstree::merge(void *left, void *root, uint32_t depth, leafvalue *lv,
     key_indexed_position kx_;
     uint64_t oldv;
     leafnode *next;
-    void *snapshot_v;
+    uint64_t snapshot_v;
 
     if (depth > 0) {
         //if (level > reinterpret_cast<leafnode *>(left)->level())
@@ -1385,7 +1441,7 @@ int masstree::merge(void *left, void *root, uint32_t depth, leafvalue *lv,
     } else {
         //if (level > reinterpret_cast<leafnode *>(this->root_)->level())
         //    return ;
-        p = reinterpret_cast<leafnode *> (this->root_);
+        p = reinterpret_cast<leafnode *> (ptr_from_off(this->root_));
     }
 
     while (p->level() > level) {
@@ -1405,13 +1461,13 @@ inter_retry:
             fence();
             if (p->key(kx_.p) <= key) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else {
                     goto inter_retry;
                 }
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
@@ -1435,7 +1491,7 @@ leaf_retry:
 
 void *masstree::get(uint64_t key)
 {
-    void *root = this->root_;
+    void *root = ptr_from_off(this->root_);
     key_indexed_position kx_;
     leafnode *next;
 
@@ -1453,19 +1509,19 @@ inter_retry:
 
         kx_ = p->key_lower_bound(key);
 
-        void *snapshot_v;
+        uint64_t snapshot_v;
         if (kx_.i >= 0) {
             snapshot_v = p->value(kx_.p);
             fence();
             if (p->key(kx_.p) <= key) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else {
                     goto inter_retry;
                 }
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
@@ -1476,11 +1532,11 @@ leaf_retry:
 
     kx_ = l->key_lower_bound_by(key);
 
-    void *snapshot_v = l->value(kx_.p);
+    uint64_t snapshot_v = l->value(kx_.p);
     fence();
     if (kx_.p >= 0 && l->key(kx_.p) == key) {
         if (snapshot_v == l->value(kx_.p))
-            return snapshot_v;
+            return (void *)snapshot_v;
         else {
             l = l->advance_to_key(key, false);
             goto leaf_retry;
@@ -1500,10 +1556,10 @@ leaf_retry:
             }
 
             if (l->next_()) {
-                cp = l->next_()->permute();
-                printf("next high key = %lu\n", l->next_()->highest_());
+                cp = ((leafnode *)ptr_from_off(l->next_()))->permute();
+                printf("next high key = %lu\n", ((leafnode *)ptr_from_off(l->next_()))->highest_());
                 for (int i = 0; i < cp.size(); i++) {
-                    printf("next key = %lu\n", l->next_()->key(cp[i]));
+                    printf("next key = %lu\n", ((leafnode *)ptr_from_off(l->next_()))->key(cp[i]));
                 }
             }
             exit(0);
@@ -1513,11 +1569,11 @@ leaf_retry:
 
 void *masstree::get(char *key)
 {
-    void *root = this->root_;
+    void *root = ptr_from_off(this->root_);
     key_indexed_position kx_;
     uint32_t depth = 0;
     leafnode *next;
-    void *snapshot_v;
+    uint64_t snapshot_v;
 
     leafvalue *lv = make_leaf(key, strlen(key), 0);
 
@@ -1541,13 +1597,13 @@ inter_retry:
             fence();
             if (p->key(kx_.p) <= lv->fkey[depth]) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else {
                     goto inter_retry;
                 }
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
@@ -1562,16 +1618,16 @@ leaf_retry:
         snapshot_v = l->value(kx_.p);
         if (!IS_LV(l->value(kx_.p))) {
             if (l->key(kx_.p) == lv->fkey[depth] && snapshot_v == l->value(kx_.p)) {
-                p = reinterpret_cast<leafnode *> (snapshot_v);
+                p = reinterpret_cast<leafnode *> (ptr_from_off(snapshot_v));
                 depth++;
                 goto from_root;
             }
         } else {
-            snapshot_v = &((LV_PTR(l->value(kx_.p)))->value);
-            if (l->key(kx_.p) == lv->fkey[depth] && (LV_PTR(l->value(kx_.p)))->key_len == lv->key_len
-                    && memcmp((LV_PTR(l->value(kx_.p)))->fkey, lv->fkey, lv->key_len) == 0) {
-                if (snapshot_v == &((LV_PTR(l->value(kx_.p)))->value))
-                    return snapshot_v;
+            snapshot_v = (uint64_t) &(((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->value);
+            if (l->key(kx_.p) == lv->fkey[depth] && ((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->key_len == lv->key_len
+                    && memcmp(((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->fkey, lv->fkey, lv->key_len) == 0) {
+                if (snapshot_v == (uint64_t) &(((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->value))
+                    return (void *) snapshot_v;
             } else {
                 return NULL;
             }
@@ -1593,13 +1649,13 @@ leaf_retry:
             permuter cp = l->permute();
             for (int i = 0; i < cp.size(); i++) {
                 printf("key = %lu\n", l->key(cp[i]));
-                printf("fkey = %s\n", (char *)((LV_PTR(l->value(cp[i])))->fkey));
+                printf("fkey = %s\n", (char *)(((leafvalue *)ptr_from_off((LV_PTR(l->value(cp[i])))))->fkey));
             }
 
             if (l->next_()) {
-                cp = l->next_()->permute();
+                cp = ((leafnode *)ptr_from_off(l->next_()))->permute();
                 for (int i = 0; i < cp.size(); i++) {
-                    printf("next key = %lu\n", l->next_()->key(cp[i]));
+                    printf("next key = %lu\n", ((leafnode *)ptr_from_off(l->next_()))->key(cp[i]));
                 }
             }
             exit(0);
@@ -1611,7 +1667,7 @@ void leafnode::get_range(leafvalue * &lv, int num, int &count, leafvalue *buf[],
 {
     key_indexed_position kx_;
     leafnode *next;
-    void *snapshot_v, *snapshot_n;
+    uint64_t snapshot_v, snapshot_n;
     permuter perm;
     int backup;
 
@@ -1635,13 +1691,13 @@ inter_retry:
             fence();
             if (p->key(kx_.p) <= lv->fkey[depth]) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else {
                     goto inter_retry;
                 }
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
@@ -1661,25 +1717,25 @@ leaf_retry:
             fence();
             if (!IS_LV(l->value(perm[i]))) {
                 if (l->key(perm[i]) > lv->fkey[depth] && snapshot_v == l->value(perm[i])) {
-                    p = reinterpret_cast<leafnode *> (snapshot_v);
+                    p = reinterpret_cast<leafnode *> (ptr_from_off(snapshot_v));
                     leafvalue *smallest = p->smallest_leaf(lv->key_len, lv->value);
                     p->get_range(smallest, num, count, buf, p, depth + 1);
                 } else if (l->key(perm[i]) == lv->fkey[depth] && snapshot_v == l->value(perm[i])) {
-                    p = reinterpret_cast<leafnode *> (snapshot_v);
+                    p = reinterpret_cast<leafnode *> (ptr_from_off(snapshot_v));
                     p->get_range(lv, num, count, buf, p, depth + 1);
                 }
             } else {
                 snapshot_v = (LV_PTR(snapshot_v));
                 if (l->key(perm[i]) > lv->fkey[depth]) {
                     if (snapshot_v == (LV_PTR(l->value(perm[i]))))
-                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v);
+                        buf[count++] = reinterpret_cast<leafvalue *> (ptr_from_off(snapshot_v));
                     else {
                         count = backup;
                         goto leaf_retry;
                     }
-                } else if (l->key(perm[i]) == lv->fkey[depth] && memcmp((LV_PTR(l->value(perm[i])))->fkey, lv->fkey, lv->key_len) >= 0) {
+                } else if (l->key(perm[i]) == lv->fkey[depth] && memcmp(((leafvalue *)ptr_from_off((LV_PTR(l->value(perm[i])))))->fkey, lv->fkey, lv->key_len) >= 0) {
                     if (snapshot_v == (LV_PTR(l->value(perm[i]))))
-                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v);
+                        buf[count++] = reinterpret_cast<leafvalue *> (ptr_from_off(snapshot_v));
                     else {
                         count = backup;
                         goto leaf_retry;
@@ -1692,21 +1748,21 @@ leaf_retry:
             count = backup;
             continue;
         } else {
-            if (snapshot_n == NULL)
+            if (snapshot_n == 0)
                 break;
             else
-                l = reinterpret_cast<leafnode *> (snapshot_n);
+                l = reinterpret_cast<leafnode *> (ptr_from_off(snapshot_n));
         }
     }
 }
 
 int masstree::scan(char *min, int num, leafvalue *buf[])
 {
-    void *root = this->root_;
+    void *root = ptr_from_off(this->root_);
     key_indexed_position kx_;
     uint32_t depth = 0;
     leafnode *next;
-    void *snapshot_v, *snapshot_n;
+    uint64_t snapshot_v, snapshot_n;
     permuter perm;
     int count, backup;
 
@@ -1731,13 +1787,13 @@ inter_retry:
             fence();
             if (p->key(kx_.p) <= lv->fkey[depth]) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else {
                     goto inter_retry;
                 }
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
@@ -1757,25 +1813,25 @@ leaf_retry:
             mfence();
             if (!IS_LV(l->value(perm[i]))) {
                 if (l->key(perm[i]) > lv->fkey[depth] && snapshot_v == l->value(perm[i])) {
-                    p = reinterpret_cast<leafnode *> (snapshot_v);
+                    p = reinterpret_cast<leafnode *> (ptr_from_off(snapshot_v));
                     leafvalue *smallest = p->smallest_leaf(lv->key_len, lv->value);
                     p->get_range(smallest, num, count, buf, p, depth + 1);
                 } else if (l->key(perm[i]) == lv->fkey[depth] && snapshot_v == l->value(perm[i])) {
-                    p = reinterpret_cast<leafnode *> (snapshot_v);
+                    p = reinterpret_cast<leafnode *> (ptr_from_off(snapshot_v));
                     p->get_range(lv, num, count, buf, p, depth + 1);
                 }
             } else {
                 snapshot_v = (LV_PTR(snapshot_v));
                 if (l->key(perm[i]) > lv->fkey[depth]) {
                     if (snapshot_v == (LV_PTR(l->value(perm[i]))))
-                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v);
+                        buf[count++] = reinterpret_cast<leafvalue *> (ptr_from_off(snapshot_v));
                     else {
                         count = backup;
                         goto leaf_retry;
                     }
-                } else if (l->key(perm[i]) == lv->fkey[depth] && memcmp((LV_PTR(l->value(perm[i])))->fkey, lv->fkey, lv->key_len) >= 0) {
+                } else if (l->key(perm[i]) == lv->fkey[depth] && memcmp(((leafvalue *)ptr_from_off((LV_PTR(l->value(perm[i])))))->fkey, lv->fkey, lv->key_len) >= 0) {
                     if (snapshot_v == (LV_PTR(l->value(perm[i]))))
-                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v);
+                        buf[count++] = reinterpret_cast<leafvalue *> (ptr_from_off(snapshot_v));
                     else {
                         count = backup;
                         goto leaf_retry;
@@ -1788,10 +1844,10 @@ leaf_retry:
             count = backup;
             continue;
         } else {
-            if (snapshot_n == NULL)
+            if (snapshot_n == 0)
                 break;
             else
-                l = reinterpret_cast<leafnode *> (snapshot_n);
+                l = reinterpret_cast<leafnode *> (ptr_from_off(snapshot_n));
         }
     }
 
@@ -1800,12 +1856,12 @@ leaf_retry:
 
 int masstree::scan(uint64_t min, int num, uint64_t *buf)
 {
-    void *root = this->root_;
+    void *root = ptr_from_off(this->root_);
     key_indexed_position kx_;
     uint32_t depth = 0;
     leafnode *next;
-    void *snapshot_v;
-    leafnode *snapshot_n;
+    uint64_t snapshot_v;
+    uint64_t snapshot_n;
     permuter perm;
     int count, backup;
 
@@ -1828,13 +1884,13 @@ inter_retry:
             fence();
             if (p->key(kx_.p) <= min) {
                 if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
+                    p = reinterpret_cast<leafnode *>(ptr_from_off(snapshot_v));
                 else {
                     goto inter_retry;
                 }
             }
         } else {
-            p = p->leftmost();
+            p = reinterpret_cast<leafnode *>(ptr_from_off(p->leftmost()));
         }
     }
 
@@ -1865,10 +1921,10 @@ leaf_retry:
             count = backup;
             continue;
         } else {
-            if (snapshot_n == NULL)
+            if (snapshot_n == 0)
                 break;
             else
-                l = snapshot_n;
+                l = (leafnode *)ptr_from_off(snapshot_n);
         }
     }
 

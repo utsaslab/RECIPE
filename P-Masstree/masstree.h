@@ -13,6 +13,9 @@
 #include "tbb/concurrent_vector.h"
 #endif
 
+#include <libpmemobj.h>
+#include <unistd.h>
+
 namespace masstree {
 
 #define LEAF_WIDTH          15
@@ -23,17 +26,17 @@ namespace masstree {
 
 #define LV_BITS             (1ULL << 0)
 #define IS_LV(x)            ((uintptr_t)x & LV_BITS)
-#define LV_PTR(x)           (leafvalue*)((void*)((uintptr_t)x & ~LV_BITS))
+#define LV_PTR(x)           ((uint64_t)((uintptr_t)x & ~LV_BITS))
 #define SET_LV(x)           ((void*)((uintptr_t)x | LV_BITS))
 
 class kv {
     private:
         uint64_t key;
-        void *value;
+        uint64_t value;
     public:
         kv() {
             key = UINT64_MAX;
-            value = NULL;
+            value = 0;
         }
 
         friend class leafnode;
@@ -57,16 +60,18 @@ typedef struct key_indexed_position {
 
 class masstree {
     private:
-        void *root_;
+        uint64_t root_;
     public:
-        masstree();
+        masstree ();
 
         masstree (void *new_root);
 
         ~masstree() {
         }
 
-        void *root() {return root_;}
+        void *operator new(size_t size);
+
+        uint64_t root() {return root_;}
 
         void setNewRoot(void *new_root);
 
@@ -319,9 +324,9 @@ class leafnode {
     private:
         uint32_t level_;        // 4bytes
         uint32_t version_;      // 4bytes
-        std::mutex *wlock;      // 8bytes
-        leafnode *next;         // 8bytes
-        leafnode *leftmost_ptr; // 8bytes
+        uint64_t wlock;         // 8bytes
+        uint64_t next;          // 8bytes
+        uint64_t leftmost_ptr;  // 8bytes
         uint64_t highest;       // 8bytes
         permuter permutation;   // 8bytes
         uint64_t dummy[2];      // 16bytes
@@ -344,7 +349,7 @@ class leafnode {
 
         void unlock();
 
-        bool trylock();
+        int trylock();
 
         int compare_key(const uint64_t a, const uint64_t b);
 
@@ -386,11 +391,11 @@ class leafnode {
 
         uint64_t key(int i) {return entry[i].key;}
 
-        void *value(int i) {return entry[i].value;}
+        uint64_t value(int i) {return entry[i].value;}
 
-        leafnode *leftmost() {return leftmost_ptr;}
+        uint64_t leftmost() {return leftmost_ptr;}
 
-        leafnode *next_() {return next;}
+        uint64_t next_() {return next;}
 
         uint64_t highest_() {return highest;}
 
@@ -408,6 +413,13 @@ class leafnode {
 
         leafnode *search_for_leftsibling(void *root, uint64_t key, uint32_t level, leafnode *right);
 };
+
+// Initialize the persistent memory pool
+//POBJ_LAYOUT_BEGIN(p_masstree);
+//POBJ_LAYOUT_ROOT(p_masstree, masstree);
+//POBJ_LAYOUT_TOID(p_masstree, leafnode);
+//POBJ_LAYOUT_TOID(p_masstree, leafvalue);
+//POBJ_LAYOUT_END(p_masstree);
 
 }
 #endif
