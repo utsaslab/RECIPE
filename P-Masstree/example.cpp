@@ -22,8 +22,7 @@ void run(char **argv) {
     tbb::task_scheduler_init init(num_thread);
 
     printf("operation,n,ops/s\n");
-    masstree::leafnode *init_root = new masstree::leafnode(0);
-    masstree::masstree *tree = new masstree::masstree(init_root);
+    masstree::masstree *tree = new masstree::masstree();
 
     {
         // Build tree

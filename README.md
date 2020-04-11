@@ -85,7 +85,7 @@ $ vi ycsb.cpp
 For running the indexes on Intel Optane DC Persistent Memory, we will use 
 [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html) to 
 transparently converts all dynamic memory allocations into Persistent Memory 
-allocations, mapped by pmem.
+allocations, mapped by pmem. 
 
 #### Ext4-DAX mount
 ```
@@ -155,6 +155,9 @@ $ sudo su
 # <b>source ./scripts/unset_vmmalloc.sh</b>
 </pre>
 
+## PMDK Implementation
+The RECIPE indices are currently being ported to PMDK to ensure the recoverability of each data structure. Since RECIPE does not handle memory leaks during crashes, PMDK ensures the user's ability to recover any allocations that were made in a persistent memory pool. Currently, only the CLHT data structure has been ported to use PMDK. For more details regarding the PMDK implementation please check out the `pmdk` branch as well as these [details](pmdk.md). 
+
 ## Artifact Evaluation
 
 For artifact evaluation, we will evaluate again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in [Benchmark details](https://github.com/utsaslab/RECIPE#benchmark-details) section below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
@@ -166,7 +169,7 @@ For artifact evaluation, we will evaluate again the performance of the index str
 Just for performance testing on real PM, you can use [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html), 
 which transparently converts all the dynamic memory allocations into Persistent Memory allocations.
 However, if you want to apply RECIPE indexes into your real PM application, you would need to change current volatile 
-memory allocators using [libpmem](https://pmem.io/pmdk/) APIs. Currently, a version of RECIPE is being developed using the PMDK library (check the "pmdk" branch!) 
+memory allocators using [libpmem](https://pmem.io/pmdk/) APIs. Currently, a version of RECIPE is being developed using the PMDK library. Check out the `pmdk` [branch](https://github.com/utsaslab/RECIPE/blob/pmdk/P-CLHT/README.md)! 
 
 2. Current implementations only ensure the lowest level of isolation (Read Uncommitted) when using them for transactional systems, 
 since they are based on normal CASs and temporal stores coupled with cache line flush instructions. However, you may extend them

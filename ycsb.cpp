@@ -517,8 +517,7 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
         }
     } else if (index_type == TYPE_MASSTREE) {
-        masstree::leafnode *init_root = new masstree::leafnode(0);
-        masstree::masstree *tree = new masstree::masstree(init_root);
+        masstree::masstree *tree = new masstree::masstree();
 
         {
             // Load
@@ -933,8 +932,7 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             printf("Throughput: run, %f ,ops/us\n", (RUN_SIZE * 1.0) / duration.count());
         }
     } else if (index_type == TYPE_MASSTREE) {
-        masstree::leafnode *init_root = new masstree::leafnode(0);
-        masstree::masstree *tree = new masstree::masstree(init_root);
+        masstree::masstree *tree = new masstree::masstree();
 
         {
             // Load
