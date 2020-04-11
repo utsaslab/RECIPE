@@ -96,7 +96,7 @@ void run(char **argv) {
             thread_group[i].join();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::system_clock::now() - starttime);
-        printf("Throughput: load, %f ,ops/us\n", (n * 1.0) / duration.count());
+        printf("Throughput: load, %f ,ops/s\n", (n * 1.0) / (duration.count()/1000000.0));
     }
 
     barrier.crossing = 0;
@@ -135,9 +135,9 @@ void run(char **argv) {
             thread_group[i].join();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::system_clock::now() - starttime);
-        printf("Throughput: run, %f ,ops/us\n", (n * 1.0) / duration.count());
+        printf("Throughput: run, %f ,ops/s\n", (n * 1.0) / (duration.count()/1000000.0));
     }
-    clht_gc_destroy(hashtable);
+    // clht_gc_destroy(hashtable);
 
     delete[] keys;
 }

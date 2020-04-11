@@ -207,13 +207,29 @@ clht_bucket_create()
 {
     bucket_t* bucket = NULL;
     PMEMoid bucket_oid;
-    if (pmemobj_alloc(pop, &bucket_oid, sizeof(bucket_t), 0, bucket_init, 0)) 
+#if PMDK_TRANSACTION
+TX_BEGIN(pop) {
+    bucket_oid = pmemobj_tx_alloc(sizeof(bucket_t), TOID_TYPE_NUM(bucket_t));
+    bucket = pmemobj_direct(bucket_oid);
+    bucket->lock = 0;
+    
+    uint32_t j;
+    for (j = 0; j < ENTRIES_PER_BUCKET; j++)
+    {
+        bucket->key[j] = 0;
+    }
+    bucket->next_off = OID_NULL.off;
+} TX_END
+ #else
+    if (pmemobj_alloc(pop, &bucket_oid, sizeof(bucket_t), TOID_TYPE_NUM(bucket_t), bucket_init, 0)) 
     {
         fprintf(stderr, "pmemobj_alloc failed for clht_bucket_create\n");
         assert(0);
 	}
-    // bucket = (bucket_t *) memalign(CACHE_LINE_SIZE, sizeof(bucket_t));
     bucket = pmemobj_direct(bucket_oid);
+#endif
+    // bucket = (bucket_t *) memalign(CACHE_LINE_SIZE, sizeof(bucket_t));
+    
     if (bucket == NULL)
     {
         return NULL;
@@ -261,9 +277,11 @@ clht_t* clht_open() {
     pool_uuid = my_root.pool_uuid_lo;
 
     clht_t* w = pmemobj_direct(my_root);
-    printf("my_root.off: %d\n", my_root.off);
+    printf("my_root.off: %ld\n", my_root.off);
     return w;
 }
+
+// clht_hashtable_t* g_ptr;
 
     clht_t* 
 clht_create(uint64_t num_buckets)
@@ -293,7 +311,7 @@ clht_create(uint64_t num_buckets)
     pool_uuid = my_root.pool_uuid_lo;
 
     clht_t* w = pmemobj_direct(my_root);
-    printf("my_root.off: %d\n", my_root.off);
+    printf("my_root.off: %ld\n", my_root.off);
 
     if (w == NULL)
     {
@@ -304,20 +322,12 @@ clht_create(uint64_t num_buckets)
     clht_hashtable_t* ht_ptr;
 
     // Transactional allocation
-#if PMDK_TRANSACTION 
-    TX_BEGIN(pop) {
-        ht_ptr= clht_hashtable_create(num_buckets);
-        printf("clht_create ht_ptr->table.off: %d\n", ht_ptr->table_off);
-        //pmemobj_tx_abort(-1);
-        w->ht_off = pmemobj_oid(ht_ptr).off;
-    } TX_ONABORT {
-        printf("Failed clht_hashtable_create, rolling back\n");
-    } TX_END;
-#else
-    ht_ptr= clht_hashtable_create(num_buckets);
-    printf("clht_create ht_ptr->table.off: %d\n", ht_ptr->table_off);
+    ht_ptr = clht_hashtable_create(num_buckets);
+    // printf("g_ptr after abort: %p\n", g_ptr);
+    // PMEMoid temp = pmemobj_oid(g_ptr);
+    // printf("temp.offset: %d, temp.pool: %d\n", temp.off, temp.pool_uuid_lo);
+    printf("clht_create ht_ptr->table.off: %ld\n", ht_ptr->table_off);
     w->ht_off = pmemobj_oid(ht_ptr).off;
-#endif
 
     if (ht_ptr == NULL)
     {
@@ -340,6 +350,7 @@ clht_create(uint64_t num_buckets)
     return w;
 }
 
+
     clht_hashtable_t*
 clht_hashtable_create(uint64_t num_buckets)
 {
@@ -354,12 +365,20 @@ clht_hashtable_create(uint64_t num_buckets)
     // hashtable = (clht_hashtable_t*) memalign(CACHE_LINE_SIZE, sizeof(clht_hashtable_t));
     // Allocate the table in persistent memory
     PMEMoid ht_oid;
-    if (pmemobj_alloc(pop, &ht_oid, sizeof(clht_hashtable_t), 0, 0, 0)) {
+#if PMDK_TRANSACTION
+TX_BEGIN(pop) {
+    ht_oid = pmemobj_tx_alloc(sizeof(clht_hashtable_t), TOID_TYPE_NUM(clht_hashtable_t));
+#else
+    if (pmemobj_alloc(pop, &ht_oid, sizeof(clht_hashtable_t), TOID_TYPE_NUM(clht_hashtable_t), 0, 0)) 
+    {
         fprintf(stderr, "pmemobj_alloc failed for clht_hashtable_create\n");
         assert(0);
     }
+#endif
     hashtable = pmemobj_direct(ht_oid);
-
+    // g_ptr = hashtable;
+    // printf("g_ptr: %p\n", g_ptr);
+    
     if (hashtable == NULL)
     {
         printf("** malloc @ hashtable\n");
@@ -369,13 +388,17 @@ clht_hashtable_create(uint64_t num_buckets)
     /* hashtable->table = calloc(num_buckets, (sizeof(bucket_t))); */
     // hashtable->table = (bucket_t*) memalign(CACHE_LINE_SIZE, num_buckets * (sizeof(bucket_t)));
     PMEMoid table_oid;
-    if (pmemobj_alloc(pop, &table_oid, num_buckets * sizeof(bucket_t), 0, 0, 0)) {
+#if PMDK_TRANSACTION
+    table_oid = pmemobj_tx_zalloc(num_buckets * sizeof(bucket_t), TOID_TYPE_NUM(bucket_t));
+#else
+    if (pmemobj_alloc(pop, &table_oid, num_buckets * sizeof(bucket_t), TOID_TYPE_NUM(bucket_t), 0, 0)) 
+    {
         fprintf(stderr, "pmemobj_alloc failed for table_oid in clht_hashtable_create\n");
         assert(0);
     }
-
+#endif
     hashtable->table_off = table_oid.off;
-
+   
     bucket_t* bucket_ptr = clht_ptr_from_off(hashtable->table_off);
 
     if (bucket_ptr == NULL) 
@@ -385,7 +408,7 @@ clht_hashtable_create(uint64_t num_buckets)
         return NULL;
     }
 
-    memset(bucket_ptr, 0, num_buckets * (sizeof(bucket_t)));
+    //memset(bucket_ptr, 0, num_buckets * (sizeof(bucket_t)));
 
     uint64_t i;
     for (i = 0; i < num_buckets; i++)
@@ -397,7 +420,7 @@ clht_hashtable_create(uint64_t num_buckets)
             bucket_ptr[i].key[j] = 0;
         }
     }
-
+    
     hashtable->num_buckets = num_buckets;
     hashtable->hash = num_buckets - 1;
     hashtable->version = 0;
@@ -413,6 +436,9 @@ clht_hashtable_create(uint64_t num_buckets)
     hashtable->is_helper = 1;
     hashtable->helper_done = 0;
 
+#if PMDK_TRANSACTION    
+} TX_END
+#endif
     return hashtable;
 }
 
@@ -540,6 +566,8 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
                 bucket_t* b;
 #if PMDK_TRANSACTION
                 TX_BEGIN(pop) {
+                    pmemobj_tx_add_range_direct((const void*)&(bucket->next_off), sizeof(uint64_t));
+                    // printf("made it here at least\n");
                     b = clht_bucket_create_stats(hashtable, &resize);
                     b->val[0] = val;
 #ifdef __tile__
@@ -644,6 +672,7 @@ clht_remove(clht_t* h, clht_addr_t key)
                 // May not need this, if there is a crash, remove will not be persisted
 #if PMDK_TRANSACTION                
                 TX_BEGIN(pop) {
+                    pmemobj_tx_add_range_direct((const void*)&(bucket->key[j]), sizeof(clht_addr_t));
                     bucket->key[j] = 0;
                     clflush((char *)&bucket->key[j], sizeof(uintptr_t), true);
                 } TX_END
@@ -676,6 +705,8 @@ clht_put_seq(clht_hashtable_t* hashtable, clht_addr_t key, clht_val_t val, uint6
             {
 #if PMDK_TRANSACTION
                 TX_BEGIN(pop) {
+                    pmemobj_tx_add_range_direct((const void*)&(bucket->key[j]), sizeof(clht_addr_t));
+                    pmemobj_tx_add_range_direct((const void*)&(bucket->val[j]), sizeof(clht_val_t));
                     bucket->val[j] = val;
                     bucket->key[j] = key;
                 } TX_END
@@ -695,6 +726,8 @@ clht_put_seq(clht_hashtable_t* hashtable, clht_addr_t key, clht_val_t val, uint6
             bucket_t* bucket_ptr = clht_ptr_from_off(bucket->next_off);
 #if PMDK_TRANSACTION            
             TX_BEGIN(pop) {
+                pmemobj_tx_add_range_direct((const void*)&(bucket->key[0]), sizeof(clht_addr_t));
+                pmemobj_tx_add_range_direct((const void*)&(bucket->val[0]), sizeof(clht_val_t));
                 bucket_ptr->val[0] = val;
                 bucket_ptr->key[0] = key;
             } TX_ONABORT {
@@ -798,6 +831,7 @@ ht_resize_help(clht_hashtable_t* h)
     int
 ht_resize_pes(clht_t* h, int is_increase, int by)
 {
+
    ticks s = getticks();
 
     check_ht_status_steps = CLHT_STATUS_INVOK;
@@ -824,7 +858,10 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     }
 
     printf("// resizing: from %8zu to %8zu buckets\n", ht_old->num_buckets, num_buckets_new); 
-    
+
+#if PMDK_TRANSACTION
+    TX_BEGIN(pop) {
+#endif
     clht_hashtable_t* ht_new = clht_hashtable_create(num_buckets_new);
     ht_new->version = ht_old->version + 1;
 
@@ -921,7 +958,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     uint64_t ht_new_oid_off = ht_new_oid.off;
     // uint64_t h_new = (uint64_t)h + sizeof(uint64_t);
     uint64_t* h_new = &(h->ht_off);
-
+    pmemobj_tx_add_range_direct(&(h->ht_off), sizeof(uint64_t));
     //SWAP_U64((uint64_t*) h, (uint64_t) ht_new);
     SWAP_U64((uint64_t*)h_new, ht_new_oid_off);
 
@@ -985,7 +1022,9 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     {
         ht_status(h, 1, 0);
     }
-    
+#if PMDK_TRANSACTION
+    } TX_END
+#endif
     return 1;
 }
 
@@ -1078,15 +1117,7 @@ ht_status(clht_t* h, int resize_increase, int just_print)
         {
 //            printf("[STATUS-%02d] #bu: %7zu / #elems: %7zu / full%%: %8.4f%% / expands: %4d / max expands: %2d\n",
 //                    clht_gc_get_id(), hashtable->num_buckets, size, full_ratio, expands, expands_max);
-#if PMDK_TRANSACTION            
-            TX_BEGIN(pop) {
-                ht_resize_pes(h, 0, 33);
-            } TX_ONABORT {
-                printf("Failed ht_resize_pes, rolling back\n");
-            } TX_END
-#else
             ht_resize_pes(h, 0, 33);
-#endif
         }
         else if ((full_ratio > 0 && full_ratio > CLHT_PERC_FULL_DOUBLE) || expands_max > CLHT_MAX_EXPANSIONS ||
                 resize_increase)
@@ -1102,15 +1133,7 @@ ht_status(clht_t* h, int resize_increase, int just_print)
             }
 			DEBUG_PRINT("Callig ht_resize_pes\n");
             int ret = 0;
-#if PMDK_TRANSACTION
-            TX_BEGIN(pop) {
-                ret = ht_resize_pes(h, 1, inc_by_pow2);
-            } TX_ONABORT {
-                printf("Failed ht_resize_pes, rolling back\n");
-            } TX_END;
-#else
             ret = ht_resize_pes(h, 1, inc_by_pow2);
-#endif
 			// return if crashed
 			if (ret == -1)
 				return 0;
