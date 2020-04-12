@@ -958,7 +958,9 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     uint64_t ht_new_oid_off = ht_new_oid.off;
     // uint64_t h_new = (uint64_t)h + sizeof(uint64_t);
     uint64_t* h_new = &(h->ht_off);
+#if PMDK_TRANSACTION
     pmemobj_tx_add_range_direct(&(h->ht_off), sizeof(uint64_t));
+#endif
     //SWAP_U64((uint64_t*) h, (uint64_t) ht_new);
     SWAP_U64((uint64_t*)h_new, ht_new_oid_off);
 
