@@ -22,12 +22,19 @@ clht_t* w = pmemobj_direct(my_root);
 **Limitations** Currently, CLHT is the only data structure that has been converted to PMDK. We plan on updating the other data structures in the near future.
 
 ## Build & Run
+### System requirements
+- Ubuntu 18.04.1 LTS
+- P-HOT: x86-64 CPU supporting at least the AVX-2 and BMI-2 instruction sets (Haswell and newer)
+- Linux kernel: v5.3 or later (The huge performance drop in PMDK was observed on the old kernel versions)
+- Compiler: cmake, g++-7, gcc-7, c++17
+
 ### How to enable PM?
 1. Install PMDK
-```$ git clone https://github.com/pmem/pmdk.git 
+$ git clone https://github.com/pmem/pmdk.git 
 $ cd pmdk
-$ git checkout tags/1.6
+$ git checkout tags/1.8
 $ make -j
+$ sudo make install
 $ cd ..  
 ```
 2. Emulate PM with Ext4-DAX mount
