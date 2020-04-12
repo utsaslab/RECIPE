@@ -85,12 +85,12 @@ masstree::masstree () {
 
 masstree::masstree (void *new_root) {
     root_ = pmemobj_oid(new_root).off;
-    clflush((char *)ptr_from_off(root_), sizeof(leafnode), true);      // 304 is the leafnode size of masstree
+    clflush((char *)ptr_from_off(root_), sizeof(leafnode), true);
 }
 
 void *masstree::operator new(size_t size) {
     // Open the PMEMpool if it exists, otherwise create it.
-    size_t pool_size = 2*1024*1024*1024UL;
+    size_t pool_size = 8*1024*1024*1024UL;
     if (access("/mnt/pmem/pool", F_OK) != -1)
         pop = pmemobj_open("/mnt/pmem/pool", POBJ_LAYOUT_NAME(p_masstree));
     else
