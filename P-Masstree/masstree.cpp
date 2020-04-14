@@ -78,9 +78,11 @@ void lock_initialization()
 #endif
 
 masstree::masstree () {
-    leafnode *init_root = new leafnode(0);
-    root_ = pmemobj_oid(init_root).off;
-    clflush((char *)ptr_from_off(root_), sizeof(leafnode), true);
+    if (root_ == 0) {
+        leafnode *init_root = new leafnode(0);
+        root_ = pmemobj_oid(init_root).off;
+        clflush((char *)ptr_from_off(root_), sizeof(leafnode), true);
+    }
 }
 
 masstree::masstree (void *new_root) {
