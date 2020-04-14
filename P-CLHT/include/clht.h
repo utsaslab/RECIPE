@@ -130,9 +130,9 @@ typedef union
   };
 } clht_snapshot_t;
 
-#if __GNUC__ > 4 && __GNUC_MINOR__ > 4
-_Static_assert (sizeof(clht_snapshot_t) == 8, "sizeof(clht_snapshot_t) == 8");
-#endif
+//#if __GNUC__ > 4 && __GNUC_MINOR__ > 4
+//_Static_assert (sizeof(clht_snapshot_t) == 8, "sizeof(clht_snapshot_t) == 8");
+//#endif
 
 typedef volatile struct ALIGNED(CACHE_LINE_SIZE) bucket_s
 {
@@ -157,9 +157,9 @@ typedef volatile struct ALIGNED(CACHE_LINE_SIZE) bucket_s
   volatile struct bucket_s* padding;
 } bucket_t;
 
-#if __GNUC__ > 4 && __GNUC_MINOR__ > 4
-_Static_assert (sizeof(bucket_t) % 64 == 0, "sizeof(bucket_t) == 64");
-#endif
+//#if __GNUC__ > 4 && __GNUC_MINOR__ > 4
+//_Static_assert (sizeof(bucket_t) % 64 == 0, "sizeof(bucket_t) == 64");
+//#endif
 
 #if defined(__tile__)
 typedef volatile uint32_t clht_lock_t;
