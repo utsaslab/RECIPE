@@ -13,6 +13,8 @@
 #include "tbb/concurrent_vector.h"
 #endif
 
+#include "Epoche.h"
+
 namespace masstree {
 
 #define LEAF_WIDTH          15
@@ -58,6 +60,8 @@ typedef struct key_indexed_position {
 class masstree {
     private:
         void *root_;
+
+        MASS::Epoche epoche{256};
     public:
         masstree();
 
@@ -66,31 +70,33 @@ class masstree {
         ~masstree() {
         }
 
+        MASS::ThreadInfo getThreadInfo();
+
         void *root() {return root_;}
 
         void setNewRoot(void *new_root);
 
-        void put(uint64_t key, void *value);
+        void put(uint64_t key, void *value, MASS::ThreadInfo &threadEpocheInfo);
 
-        void put(char *key, uint64_t value);
+        void put(char *key, uint64_t value, MASS::ThreadInfo &threadEpocheInfo);
 
-        void del(uint64_t key);
+        void del(uint64_t key, MASS::ThreadInfo &threadEpocheInfo);
 
-        void del(char *key);
+        void del(char *key, MASS::ThreadInfo &threadEpocheInfo);
 
-        void *get(uint64_t key);
+        void *get(uint64_t key, MASS::ThreadInfo &threadEpocheInfo);
 
-        void *get(char *key);
+        void *get(char *key, MASS::ThreadInfo &threadEpocheInfo);
 
         void split(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *right, uint32_t level, void *child);
 
-        int merge(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, uint32_t level, void *child);
+        int merge(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, uint32_t level, void *child, MASS::ThreadInfo &threadInfo);
 
         leafvalue *make_leaf(char *key, size_t key_len, uint64_t value);
 
-        int scan(uint64_t min, int num, uint64_t *buf);
+        int scan(uint64_t min, int num, uint64_t *buf, MASS::ThreadInfo &threadEpocheInfo);
 
-        int scan(char *min, int num, leafvalue *buf[]);
+        int scan(char *min, int num, leafvalue *buf[], MASS::ThreadInfo &threadEpocheInfo);
 };
 
 class permuter {
@@ -368,13 +374,13 @@ class leafnode {
                 void *value, key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling);
 
         void *leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key,
-                key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling);
+                key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, MASS::ThreadInfo &threadInfo);
 
         void *inter_insert(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *value,
                 key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, leafnode *child);
 
         int inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key,
-                key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, leafnode *child);
+                key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, leafnode *child, MASS::ThreadInfo &threadInfo);
 
         bool has_changed(uint32_t oldv);
 

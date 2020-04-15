@@ -1,4 +1,7 @@
 #include "masstree.h"
+#include "Epoche.cpp"
+
+using namespace MASS;
 
 namespace masstree {
 
@@ -76,6 +79,10 @@ masstree::masstree() {
 masstree::masstree (void *new_root) {
     root_ = new_root;
     clflush((char *)root_, sizeof(leafnode), true);      // 304 is the leafnode size of masstree
+}
+
+ThreadInfo masstree::getThreadInfo() {
+    return ThreadInfo(this->epoche);
 }
 
 leafnode::leafnode(uint32_t level) : permutation(permuter::make_empty()) {
@@ -340,8 +347,9 @@ void leafnode::check_for_recovery(masstree *t, leafnode *left, leafnode *right, 
     }
 }
 
-void masstree::put(uint64_t key, void *value)
+void masstree::put(uint64_t key, void *value, ThreadInfo &threadEpocheInfo)
 {
+    EpocheGuard epocheGuard(threadEpocheInfo);
     key_indexed_position kx_;
     uint32_t depth = 0;
     leafnode *next;
@@ -422,13 +430,14 @@ leaf_retry:
         l->unlock();
     } else {
         if (!(l->leaf_insert(this, NULL, 0, NULL, key, value, kx_, true, true, NULL))) {
-            put(key, value);
+            put(key, value, threadEpocheInfo);
         }
     }
 }
 
-void masstree::put(char *key, uint64_t value)
+void masstree::put(char *key, uint64_t value, ThreadInfo &threadEpocheInfo)
 {
+    EpocheGuard epocheGuard(threadEpocheInfo);
 restart:
     void *root = this->root_;
     key_indexed_position kx_;
@@ -532,13 +541,14 @@ leaf_retry:
         }
     } else {
         if (!(l->leaf_insert(this, root, depth, lv, lv->fkey[depth], SET_LV(lv), kx_, true, true, NULL))) {
-            put(key, value);
+            put(key, value, threadEpocheInfo);
         }
     }
 }
 
-void masstree::del(uint64_t key)
+void masstree::del(uint64_t key, ThreadInfo &threadEpocheInfo)
 {
+    EpocheGuard epocheGuard(threadEpocheInfo);
     void *root = this->root_;
     key_indexed_position kx_;
     uint32_t depth = 0;
@@ -610,13 +620,14 @@ leaf_retry:
     if (kx_.p < 0)
         return ;
 
-    if (!(l->leaf_delete(this, NULL, 0, NULL, key, kx_, true, true, NULL))) {
-        del(key);
+    if (!(l->leaf_delete(this, NULL, 0, NULL, key, kx_, true, true, NULL, threadEpocheInfo))) {
+        del(key, threadEpocheInfo);
     }
 }
 
-void masstree::del(char *key)
+void masstree::del(char *key, ThreadInfo &threadEpocheInfo)
 {
+    EpocheGuard epocheGuard(threadEpocheInfo);
     void *root = this->root_;
     key_indexed_position kx_;
     uint32_t depth = 0;
@@ -701,8 +712,8 @@ leaf_retry:
         // ii)  Checking false-positive result and starting to delete it
         } else if (IS_LV(l->value(kx_.p)) && (LV_PTR(l->value(kx_.p)))->key_len == lv->key_len &&
                 memcmp(lv->fkey, (LV_PTR(l->value(kx_.p)))->fkey, lv->key_len) == 0) {
-            if (!(l->leaf_delete(this, root, depth, lv, lv->fkey[depth], kx_, true, true, NULL))) {
-                del(key);
+            if (!(l->leaf_delete(this, root, depth, lv, lv->fkey[depth], kx_, true, true, NULL, threadEpocheInfo))) {
+                del(key, threadEpocheInfo);
             }
         } else {
             l->unlock();
@@ -1011,7 +1022,7 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
 }
 
 void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key,
-        key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling)
+        key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, ThreadInfo &threadInfo)
 {
     int merge_state;
     void *ret = NULL;
@@ -1047,7 +1058,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
                 return nr;
             } else {
                 nl = search_for_leftsibling(p->entry[pkx_.p].value, nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
-                merge_state = t->merge(p->entry[pkx_.p].value, reinterpret_cast<void *> (p), depth, lv, nr->highest, nr->level_ + 1, NULL);
+                merge_state = t->merge(p->entry[pkx_.p].value, reinterpret_cast<void *> (p), depth, lv, nr->highest, nr->level_ + 1, NULL, threadInfo);
                 if (merge_state == 16) {
                     p = correct_layer_root(root, lv, depth, pkx_);
                     p->entry[pkx_.p].value = nr;
@@ -1066,7 +1077,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
                 return nr;
             } else {
                 nl = search_for_leftsibling(t->root(), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
-                merge_state = t->merge(NULL, NULL, 0, NULL, nr->highest, nr->level_ + 1, NULL);
+                merge_state = t->merge(NULL, NULL, 0, NULL, nr->highest, nr->level_ + 1, NULL, threadInfo);
                 if (merge_state == 16)
                     t->setNewRoot(nr);
             }
@@ -1077,6 +1088,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
         if (merge_state >= 0 && merge_state < 16) {
             nl->next = nr->next;
             clflush((char *)(&nl->next), sizeof(leafnode *), true);
+            threadInfo.getEpoche().markNodeForDeletion(nr, threadInfo);
         }
 
         cp = nr->permutation.value();
@@ -1229,7 +1241,7 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
 }
 
 int leafnode::inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key,
-        key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, leafnode *child)
+        key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, leafnode *child, ThreadInfo &threadInfo)
 {
     int ret, merge_state;
 
@@ -1262,7 +1274,7 @@ int leafnode::inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *l
                 return (ret = kx_.i);
             } else {
                 nl = search_for_leftsibling(p->entry[pkx_.p].value, nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
-                merge_state = t->merge(p->entry[pkx_.p].value, root, depth, lv, nr->highest, nr->level_ + 1, nl);
+                merge_state = t->merge(p->entry[pkx_.p].value, root, depth, lv, nr->highest, nr->level_ + 1, nl, threadInfo);
             }
         } else {
             if (t->root() == nr) {
@@ -1271,7 +1283,7 @@ int leafnode::inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *l
                 return (ret = kx_.i);
             } else {
                 nl = search_for_leftsibling(t->root(), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
-                merge_state = t->merge(NULL, NULL, 0, NULL, nr->highest, nr->level_ + 1, nl);
+                merge_state = t->merge(NULL, NULL, 0, NULL, nr->highest, nr->level_ + 1, nl, threadInfo);
             }
         }
 
@@ -1279,6 +1291,7 @@ int leafnode::inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *l
         if (merge_state >= 0 && merge_state < 16) {
             nl->next = nr->next;
             clflush((char *)(&nl->next), sizeof(leafnode *), true);
+            threadInfo.getEpoche().markNodeForDeletion(nr, threadInfo);
         } else if (merge_state == 16) {
             kx_.i = 16;
         }
@@ -1369,7 +1382,7 @@ leaf_retry:
 }
 
 int masstree::merge(void *left, void *root, uint32_t depth, leafvalue *lv,
-        uint64_t key, uint32_t level, void *child)
+        uint64_t key, uint32_t level, void *child, ThreadInfo &threadInfo)
 {
     leafnode *p;
     key_indexed_position kx_;
@@ -1430,11 +1443,12 @@ leaf_retry:
     kx_ = p->key_lower_bound(key);
 
     return p->inter_delete(this, root, depth, lv, key, kx_, true,
-            true, NULL, reinterpret_cast<leafnode *> (child));
+            true, NULL, reinterpret_cast<leafnode *> (child), threadInfo);
 }
 
-void *masstree::get(uint64_t key)
+void *masstree::get(uint64_t key, ThreadInfo &threadEpocheInfo)
 {
+    EpocheGuard epocheGuard(threadEpocheInfo);
     void *root = this->root_;
     key_indexed_position kx_;
     leafnode *next;
@@ -1511,8 +1525,9 @@ leaf_retry:
     }
 }
 
-void *masstree::get(char *key)
+void *masstree::get(char *key, ThreadInfo &threadEpocheInfo)
 {
+    EpocheGuard epocheGuard(threadEpocheInfo);
     void *root = this->root_;
     key_indexed_position kx_;
     uint32_t depth = 0;
@@ -1700,8 +1715,9 @@ leaf_retry:
     }
 }
 
-int masstree::scan(char *min, int num, leafvalue *buf[])
+int masstree::scan(char *min, int num, leafvalue *buf[], ThreadInfo &threadEpocheInfo)
 {
+    EpocheGuard epocheGuard(threadEpocheInfo);
     void *root = this->root_;
     key_indexed_position kx_;
     uint32_t depth = 0;
@@ -1798,8 +1814,9 @@ leaf_retry:
     return count;
 }
 
-int masstree::scan(uint64_t min, int num, uint64_t *buf)
+int masstree::scan(uint64_t min, int num, uint64_t *buf, ThreadInfo &threadEpocheInfo)
 {
+    EpocheGuard epocheGuard(threadEpocheInfo);
     void *root = this->root_;
     key_indexed_position kx_;
     uint32_t depth = 0;
