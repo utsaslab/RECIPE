@@ -343,7 +343,7 @@ class leafnode {
 
         leafnode(void *left, uint64_t key, void *right, uint32_t level);
 
-        ~leafnode () {delete wlock;}
+        ~leafnode ();
 
         void *operator new(size_t size);
 

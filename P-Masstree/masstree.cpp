@@ -156,6 +156,11 @@ leafnode::leafnode(void *left, uint64_t key, void *right, uint32_t level = 1) : 
 #endif
 }
 
+leafnode::~leafnode() {
+    PMEMoid free_lock = {pool_uuid, wlock};
+    pmemobj_free(&free_lock);
+}
+
 void *leafnode::operator new(size_t size) {
     PMEMoid ret;
     if (pmemobj_alloc(pop, &ret, size, 0, 0, 0)) {
@@ -166,7 +171,8 @@ void *leafnode::operator new(size_t size) {
 }
 
 void leafnode::operator delete(void *addr) {
-    free(addr);
+    PMEMoid leaf_oid = pmemobj_oid(addr);
+    pmemobj_free(&leaf_oid);
 }
 
 void leafnode::lock() {pmemobj_mutex_lock(pop, (PMEMmutex *)ptr_from_off(wlock));}

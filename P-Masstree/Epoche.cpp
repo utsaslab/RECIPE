@@ -8,6 +8,8 @@
 #include <iostream>
 #include "Epoche.h"
 
+#include <libpmemobj.h>
+
 using namespace MASS;
 
 inline DeletionList::~DeletionList() {
@@ -98,12 +100,14 @@ inline void Epoche::exitEpocheAndCleanup(ThreadInfo &epocheInfo) {
         }
 
         LabelDelete *cur = deletionList.head(), *next, *prev = nullptr;
+        PMEMoid free_objs;
         while (cur != nullptr) {
             next = cur->next;
 
             if (cur->epoche < oldestEpoche) {
                 for (std::size_t i = 0; i < cur->nodesCount; ++i) {
-                    free(cur->nodes[i]);
+                    free_objs = pmemobj_oid(cur->nodes[i]);
+                    pmemobj_free(&free_objs);
                 }
                 deletionList.remove(cur, prev);
             } else {
@@ -125,12 +129,14 @@ inline Epoche::~Epoche() {
     }
     for (auto &d : deletionLists) {
         LabelDelete *cur = d.head(), *next, *prev = nullptr;
+        PMEMoid free_objs;
         while (cur != nullptr) {
             next = cur->next;
 
             assert(cur->epoche < oldestEpoche);
             for (std::size_t i = 0; i < cur->nodesCount; ++i) {
-                free(cur->nodes[i]);
+                free_objs = pmemobj_oid(cur->nodes[i]);
+                free(&free_objs);
             }
             d.remove(cur, prev);
             cur = next;
