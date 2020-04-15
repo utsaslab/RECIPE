@@ -120,6 +120,10 @@ void *leafnode::operator new(size_t size) {
     return ret;
 }
 
+void leafnode::operator delete(void *addr) {
+    free(addr);
+}
+
 void leafnode::lock() {wlock->lock();}
 
 void leafnode::unlock() {wlock->unlock();}

@@ -338,7 +338,11 @@ class leafnode {
 
         leafnode(void *left, uint64_t key, void *right, uint32_t level);
 
+        ~leafnode () {delete wlock;}
+
         void *operator new(size_t size);
+
+        void operator delete(void *addr);
 
         permuter permute();
 
