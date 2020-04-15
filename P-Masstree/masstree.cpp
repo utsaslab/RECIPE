@@ -165,6 +165,10 @@ void *leafnode::operator new(size_t size) {
     return pmemobj_direct(ret);
 }
 
+void leafnode::operator delete(void *addr) {
+    free(addr);
+}
+
 void leafnode::lock() {pmemobj_mutex_lock(pop, (PMEMmutex *)ptr_from_off(wlock));}
 
 void leafnode::unlock() {pmemobj_mutex_unlock(pop, (PMEMmutex *)ptr_from_off(wlock));}
