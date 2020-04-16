@@ -43,6 +43,7 @@ enum {
 
 enum {
     OP_INSERT,
+    OP_UPDATE,
     OP_READ,
     OP_SCAN,
     OP_DELETE,
@@ -282,6 +283,7 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
     int range;
 
     std::string insert("INSERT");
+    std::string update("UPDATE");
     std::string read("READ");
     std::string scan("SCAN");
     std::string maxKey("z");
@@ -308,6 +310,11 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
         infile_txn >> op >> key;
         if (op.compare(insert) == 0) {
             ops.push_back(OP_INSERT);
+            val = std::stoul(key.substr(4, key.size()));
+            keys.push_back(keys[count]->make_leaf((char *)key.c_str(), key.size()+1, val));
+            ranges.push_back(1);
+        } else if (op.compare(update) == 0) {
+            ops.push_back(OP_UPDATE);
             val = std::stoul(key.substr(4, key.size()));
             keys.push_back(keys[count]->make_leaf((char *)key.c_str(), key.size()+1, val));
             ranges.push_back(1);
@@ -371,6 +378,9 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                         size_t resultsSize = ranges[i];
                         Key *start = start->make_leaf((char *)keys[i]->fkey, keys[i]->key_len, keys[i]->value);
                         tree.lookupRange(start, end, continueKey, results, resultsSize, resultsFound, t);
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
             });
@@ -421,6 +431,9 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                         }
                     } else if (ops[i] == OP_SCAN) {
                         idx::contenthelpers::OptionalValue<Key *> result = mTrie.scan((char const *)keys[i]->fkey, ranges[i]);
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
             });
@@ -499,6 +512,9 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                             resultsFound++;
                             it++;
                         }
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
                 t->UnregisterThread(thread_id);
@@ -523,8 +539,9 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
             // Load
             auto starttime = std::chrono::system_clock::now();
             tbb::parallel_for(tbb::blocked_range<uint64_t>(0, LOAD_SIZE), [&](const tbb::blocked_range<uint64_t> &scope) {
+                auto t = tree->getThreadInfo();
                 for (uint64_t i = scope.begin(); i != scope.end(); i++) {
-                    tree->put((char *)init_keys[i]->fkey, init_keys[i]->value);
+                    tree->put((char *)init_keys[i]->fkey, init_keys[i]->value, t);
                 }
             });
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -536,21 +553,24 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
             // Run
             auto starttime = std::chrono::system_clock::now();
             tbb::parallel_for(tbb::blocked_range<uint64_t>(0, RUN_SIZE), [&](const tbb::blocked_range<uint64_t> &scope) {
+                auto t = tree->getThreadInfo();
                 for (uint64_t i = scope.begin(); i != scope.end(); i++) {
                     if (ops[i] == OP_INSERT) {
-                        tree->put((char *)keys[i]->fkey, keys[i]->value);
+                        tree->put((char *)keys[i]->fkey, keys[i]->value, t);
                     } else if (ops[i] == OP_READ) {
-                        uint64_t *ret = reinterpret_cast<uint64_t *> (tree->get((char *)keys[i]->fkey));
-                        if (*ret != keys[i]->value) {
+                        uint64_t *ret = reinterpret_cast<uint64_t *> (tree->get((char *)keys[i]->fkey, t));
+                        if (ap == UNIFORM && *ret != keys[i]->value) {
                             printf("[MASS] search key = %lu, search value = %lu\n", keys[i]->value, *ret);
                             exit(1);
                         }
                     } else if (ops[i] == OP_SCAN) {
                         int resultsFound;
                         masstree::leafvalue *results[200];
-                        resultsFound = tree->scan((char *)keys[i]->fkey, ranges[i], results);
+                        resultsFound = tree->scan((char *)keys[i]->fkey, ranges[i], results, t);
                     } else if (ops[i] == OP_DELETE) {
-                        tree->del((char *)keys[i]->fkey);
+                        tree->del((char *)keys[i]->fkey, t);
+                    } else if (ops[i] == OP_UPDATE) {
+                        tree->put((char *)keys[i]->fkey, keys[i]->value, t);
                     }
                 }
             });
@@ -593,6 +613,9 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                         uint64_t buf[200];
                         int resultsFound = 0;
                         bt->btree_search_range ((char *)keys[i]->fkey, (char *)maxKey.c_str(), buf, ranges[i], resultsFound);
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
             });
@@ -634,6 +657,9 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                     } else if (ops[i] == OP_SCAN) {
                         unsigned long buf[200];
                         woart_scan(t, keys[i]->fkey, keys[i]->key_len, ranges[i], buf);
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
             });
@@ -697,6 +723,7 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
     int range;
 
     std::string insert("INSERT");
+    std::string update("UPDATE");
     std::string read("READ");
     std::string scan("SCAN");
 
@@ -720,6 +747,10 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
         infile_txn >> op >> key;
         if (op.compare(insert) == 0) {
             ops.push_back(OP_INSERT);
+            keys.push_back(key);
+            ranges.push_back(1);
+        } else if (op.compare(update) == 0) {
+            ops.push_back(OP_UPDATE);
             keys.push_back(key);
             ranges.push_back(1);
         } else if (op.compare(read) == 0) {
@@ -784,6 +815,9 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                         size_t resultsSize = ranges[i];
                         Key *start = start->make_leaf(keys[i], sizeof(uint64_t), 0);
                         tree.lookupRange(start, end, continueKey, results, resultsSize, resultsFound, t);
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
             });
@@ -838,6 +872,9 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                         }
                     } else if (ops[i] == OP_SCAN) {
                         idx::contenthelpers::OptionalValue<IntKeyVal *> result = mTrie.scan(keys[i], ranges[i]);
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
             });
@@ -914,6 +951,9 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                             resultsFound++;
                             it++;
                         }
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
                 t->UnregisterThread(thread_id);
@@ -938,8 +978,9 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             // Load
             auto starttime = std::chrono::system_clock::now();
             tbb::parallel_for(tbb::blocked_range<uint64_t>(0, LOAD_SIZE), [&](const tbb::blocked_range<uint64_t> &scope) {
+                auto t = tree->getThreadInfo();
                 for (uint64_t i = scope.begin(); i != scope.end(); i++) {
-                    tree->put(init_keys[i], &init_keys[i]);
+                    tree->put(init_keys[i], &init_keys[i], t);
                 }
             });
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -951,20 +992,23 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
             // Run
             auto starttime = std::chrono::system_clock::now();
             tbb::parallel_for(tbb::blocked_range<uint64_t>(0, RUN_SIZE), [&](const tbb::blocked_range<uint64_t> &scope) {
+                auto t = tree->getThreadInfo();
                 for (uint64_t i = scope.begin(); i != scope.end(); i++) {
                     if (ops[i] == OP_INSERT) {
-                        tree->put(keys[i], &keys[i]);
+                        tree->put(keys[i], &keys[i], t);
                     } else if (ops[i] == OP_READ) {
-                        uint64_t *ret = reinterpret_cast<uint64_t *> (tree->get(keys[i]));
-                        if (*ret != keys[i]) {
+                        uint64_t *ret = reinterpret_cast<uint64_t *> (tree->get(keys[i], t));
+                        if (ap == UNIFORM && *ret != keys[i]) {
                             printf("[MASS] search key = %lu, search value = %lu\n", keys[i], *ret);
                             exit(1);
                         }
                     } else if (ops[i] == OP_SCAN) {
                         uint64_t buf[200];
-                        int ret = tree->scan(keys[i], ranges[i], buf);
+                        int ret = tree->scan(keys[i], ranges[i], buf, t);
                     } else if (ops[i] == OP_DELETE) {
-                        tree->del(keys[i]);
+                        tree->del(keys[i], t);
+                    } else if (ops[i] == OP_UPDATE) {
+                        tree->put(keys[i], &keys[i], t);
                     }
                 }
             });
@@ -1040,6 +1084,11 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                             exit(1);
                         }
                     } else if (ops[i] == OP_SCAN) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
             };
@@ -1091,6 +1140,9 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                         uint64_t buf[200];
                         int resultsFound = 0;
                         bt->btree_search_range (keys[i], UINT64_MAX, buf, ranges[i], resultsFound);
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
             });
@@ -1128,6 +1180,11 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                             exit(1);
                         }
                     } else if (ops[i] == OP_SCAN) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
             });
@@ -1165,6 +1222,11 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                             //exit(1);
                         }
                     } else if (ops[i] == OP_SCAN) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
             });
@@ -1206,6 +1268,9 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                     } else if (ops[i] == OP_SCAN) {
                         unsigned long buf[200];
                         woart_scan(t, keys[i], ranges[i], buf);
+                    } else if (ops[i] == OP_UPDATE) {
+                        std::cout << "NOT SUPPORTED CMD!\n";
+                        exit(0);
                     }
                 }
             });
@@ -1290,8 +1355,6 @@ int main(int argc, char **argv) {
         ap = UNIFORM;
     } else if (strcmp(argv[4], "zipfian") == 0) {
         ap = ZIPFIAN;
-        fprintf(stderr, "Not supported access pattern: %s\n", argv[4]);
-        exit(1);
     } else {
         fprintf(stderr, "Unknown access pattern: %s\n", argv[4]);
         exit(1);
