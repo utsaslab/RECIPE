@@ -253,34 +253,6 @@ clht_bucket_create_stats(clht_hashtable_t* h, int* resize)
 
 clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
 
-clht_t* clht_open() {
-    size_t pool_size = 2*1024*1024*1024UL;
-    if( access("/mnt/pmem/pool", F_OK ) != -1 ) 
-    {
-        pop = pmemobj_open("/mnt/pmem/pool", POBJ_LAYOUT_NAME(clht));
-    } else 
-    {
-        perror("Pool does not already exist\n");
-    }
-    
-	if (pop == NULL)
-    {
-		perror("failed to open the pool\n");
-    }
-    
-    // Create the root pointer
-    PMEMoid my_root = pmemobj_root(pop, sizeof(clht_t));
-    if (pmemobj_direct(my_root) == NULL)
-    {
-        perror("root pointer is null\n");
-    } 
-    pool_uuid = my_root.pool_uuid_lo;
-
-    clht_t* w = pmemobj_direct(my_root);
-    printf("my_root.off: %ld\n", my_root.off);
-    return w;
-}
-
 // clht_hashtable_t* g_ptr;
 
     clht_t* 
@@ -319,37 +291,38 @@ clht_create(uint64_t num_buckets)
         return NULL;
     }
 
-    clht_hashtable_t* ht_ptr;
+    if (w->ht_off == 0) {
+        clht_hashtable_t* ht_ptr;
 
-    // Transactional allocation
-    ht_ptr = clht_hashtable_create(num_buckets);
-    // printf("g_ptr after abort: %p\n", g_ptr);
-    // PMEMoid temp = pmemobj_oid(g_ptr);
-    // printf("temp.offset: %d, temp.pool: %d\n", temp.off, temp.pool_uuid_lo);
-    printf("clht_create ht_ptr->table.off: %ld\n", ht_ptr->table_off);
-    w->ht_off = pmemobj_oid(ht_ptr).off;
+        // Transactional allocation
+        ht_ptr = clht_hashtable_create(num_buckets);
+        // printf("g_ptr after abort: %p\n", g_ptr);
+        // PMEMoid temp = pmemobj_oid(g_ptr);
+        // printf("temp.offset: %d, temp.pool: %d\n", temp.off, temp.pool_uuid_lo);
+        printf("clht_create ht_ptr->table.off: %ld\n", ht_ptr->table_off);
+        w->ht_off = pmemobj_oid(ht_ptr).off;
 
-    if (ht_ptr == NULL)
-    {
-        free(w);
-        return NULL;
+        if (ht_ptr == NULL)
+        {
+            free(w);
+            return NULL;
+        }
+
+        w->resize_lock = LOCK_FREE;
+        w->gc_lock = LOCK_FREE;
+        w->status_lock = LOCK_FREE;
+        w->version_list = NULL;
+        w->version_min = 0;
+        w->ht_oldest = ht_ptr;
+
+        // This should flush everything to persistent memory
+        clflush((char *)clht_ptr_from_off(ht_ptr->table_off), num_buckets * sizeof(bucket_t), true);
+        clflush((char *)ht_ptr, sizeof(clht_hashtable_t), true);
+        clflush((char *)w, sizeof(clht_t), true);
     }
-
-    w->resize_lock = LOCK_FREE;
-    w->gc_lock = LOCK_FREE;
-    w->status_lock = LOCK_FREE;
-    w->version_list = NULL;
-    w->version_min = 0;
-    w->ht_oldest = ht_ptr;
-
-    // This should flush everything to persistent memory
-    clflush((char *)clht_ptr_from_off(ht_ptr->table_off), num_buckets * sizeof(bucket_t), true);
-    clflush((char *)ht_ptr, sizeof(clht_hashtable_t), true);
-    clflush((char *)w, sizeof(clht_t), true);
 
     return w;
 }
-
 
     clht_hashtable_t*
 clht_hashtable_create(uint64_t num_buckets)
