@@ -81,7 +81,7 @@ __thread size_t check_ht_status_steps = CLHT_STATUS_INVOK_IN;
 #endif
 */
 
-#define PMDK_TRANSACTION    1
+#define PMDK_TRANSACTION    0
 
     const char*
 clht_type_desc()
@@ -582,6 +582,8 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
                 } TX_FINALLY {
                     clflush((char *)b, sizeof(bucket_t), true);
                     bucket->next_off = pmemobj_oid(b).off;
+                    bucket_t* next_ptr = clht_ptr_from_off(bucket->next_off);
+                    clflush((char *)&next_ptr, sizeof(uintptr_t), true);
                 } TX_ONABORT {
                     printf("Failed clht_put, rolling back\n");
                 } TX_END
@@ -669,7 +671,6 @@ clht_remove(clht_t* h, clht_addr_t key)
             if (bucket->key[j] == key)
             {
                 clht_val_t val = bucket->val[j];
-                // May not need this, if there is a crash, remove will not be persisted
 #if PMDK_TRANSACTION                
                 TX_BEGIN(pop) {
                     pmemobj_tx_add_range_direct((const void*)&(bucket->key[j]), sizeof(clht_addr_t));
