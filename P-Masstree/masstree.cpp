@@ -869,13 +869,11 @@ void leafnode::assign(int p, const uint64_t& key, void *value)
 {
     entry[p].key = key;
     fence();
-    // TODO: Need to add an identifier about which DIMM includes this value
     entry[p].value = (uint64_t) value;
 }
 
 void leafnode::assign_value(int p, void *value)
 {
-    // TODO: Need to add identifier about which DIMM includes this value
     entry[p].value = (uint64_t) value;
     clflush((char *)&entry[p].value, sizeof(uint64_t), true);
 }
