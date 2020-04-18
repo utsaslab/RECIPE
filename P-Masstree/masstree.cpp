@@ -356,10 +356,10 @@ void masstree::put(uint64_t key, void *value, ThreadInfo &threadEpocheInfo)
     EpocheGuard epocheGuard(threadEpocheInfo);
     key_indexed_position kx_;
     uint32_t depth = 0;
-    leafnode *next;
+    leafnode *next = NULL, *p = NULL;
 
 from_root:
-    leafnode *p = reinterpret_cast<leafnode *> (this->root_);
+    p = reinterpret_cast<leafnode *> (this->root_);
     while (p->level() != 0) {
 inter_retry:
         next = p->advance_to_key(key, true);
@@ -442,15 +442,17 @@ leaf_retry:
 void masstree::put(char *key, uint64_t value, ThreadInfo &threadEpocheInfo)
 {
     EpocheGuard epocheGuard(threadEpocheInfo);
-restart:
-    void *root = this->root_;
+    void *root = NULL;
     key_indexed_position kx_;
-    uint32_t depth = 0;
-    leafnode *next;
-
+    uint32_t depth;
+    leafnode *next = NULL, *p = NULL;
     leafvalue *lv = make_leaf(key, strlen(key), value);
 
-    leafnode *p = reinterpret_cast<leafnode *> (root);
+restart:
+    root = this->root_;
+    depth = 0;
+    p = reinterpret_cast<leafnode *> (root);
+
 from_root:
     while (p->level() != 0) {
 inter_retry:
