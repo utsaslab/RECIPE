@@ -267,16 +267,21 @@ void leafnode::prefetch() const
 
 leafvalue *masstree::make_leaf(char *key, size_t key_len, uint64_t value)
 {
+    leafvalue *lv = NULL;
     size_t len = (key_len % sizeof(uint64_t)) == 0 ? key_len : (((key_len) / sizeof(uint64_t)) + 1) * sizeof(uint64_t);
 
-    PMEMoid ret;
-    if (pmemobj_alloc(pop, &ret, sizeof(leafvalue) + len + sizeof(uint64_t), 0, 0, 0)) {
-        fprintf(stderr, "pmemobj_alloc failed for leaf allocation\n");
-        assert(0);
+    if (value != 0) {
+        PMEMoid ret;
+        if (pmemobj_alloc(pop, &ret, sizeof(leafvalue) + len + sizeof(uint64_t), 0, 0, 0)) {
+            fprintf(stderr, "pmemobj_alloc failed for leaf allocation\n");
+            assert(0);
+        }
+        lv = reinterpret_cast<leafvalue *> (pmemobj_direct(ret));
+        memset(lv, 0, sizeof(leafvalue) + len + sizeof(uint64_t));
+    } else {
+        lv = (leafvalue *) malloc(sizeof(leafvalue) + len + sizeof(uint64_t));
+        memset(lv, 0, sizeof(leafvalue) + len + sizeof(uint64_t));
     }
-
-    leafvalue *lv = reinterpret_cast<leafvalue *> (pmemobj_direct(ret));
-    memset(lv, 0, sizeof(leafvalue) + len + sizeof(uint64_t));
 
     lv->value = value;
     lv->key_len = key_len;          // key_len or len??
@@ -783,10 +788,12 @@ leaf_retry:
             }
         } else {
             l->unlock();
+            free(lv);
             return ;
         }
     } else {
         l->unlock();
+        free(lv);
         return ;
     }
 }
@@ -1653,9 +1660,12 @@ leaf_retry:
             snapshot_v = (uint64_t) &(((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->value);
             if (l->key(kx_.p) == lv->fkey[depth] && ((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->key_len == lv->key_len
                     && memcmp(((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->fkey, lv->fkey, lv->key_len) == 0) {
-                if (snapshot_v == (uint64_t) &(((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->value))
+                if (snapshot_v == (uint64_t) &(((leafvalue *)ptr_from_off((LV_PTR(l->value(kx_.p)))))->value)) {
+                    free(lv);
                     return (void *) snapshot_v;
+                }
             } else {
+                free(lv);
                 return NULL;
             }
         }
@@ -1668,6 +1678,7 @@ leaf_retry:
             l = next;
             goto leaf_retry;
         } else {
+            free(lv);
             return NULL;
             printf("should not enter here\n");
             printf("fkey = %s, key = %lu, searched key = %lu, key index = %d\n",
@@ -1879,6 +1890,7 @@ leaf_retry:
         }
     }
 
+    free(lv);
     return count;
 }
 
