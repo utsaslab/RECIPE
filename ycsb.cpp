@@ -17,7 +17,7 @@ using namespace std;
 #include "third-party/WOART/woart.h"
 #include "masstree.h"
 #include "P-BwTree/src/bwtree.h"
-#include "clht.h"
+#include "clht_lb_res.h"
 #include "ssmem.h"
 
 #ifdef HOT
@@ -1078,7 +1078,8 @@ void ycsb_load_run_randint(int index_type, int wl, int kt, int ap, int num_threa
                     if (ops[i] == OP_INSERT) {
                         clht_put(tds[thread_id].ht, keys[i], keys[i]);
                     } else if (ops[i] == OP_READ) {
-                        uintptr_t val = clht_get(tds[thread_id].ht->ht, keys[i]);
+                        clht_hashtable_t *ht = (clht_hashtable_t *)clht_ptr_from_off((tds[thread_id].ht)->ht_off);
+                        uintptr_t val = clht_get(ht, keys[i]);
                         if (val != keys[i]) {
                             std::cout << "[CLHT] wrong key read: " << val << "expected: " << keys[i] << std::endl;
                             exit(1);

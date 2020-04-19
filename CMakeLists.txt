@@ -105,7 +105,7 @@ endif()
 
 add_library(Indexes ${INDEX_FILES})
 
-target_link_libraries(Indexes ${TbbLib} ${JemallocLib} ${CMAKE_THREAD_LIBS_INIT} pthread)
+target_link_libraries(Indexes ${TbbLib} ${JemallocLib} ${CMAKE_THREAD_LIBS_INIT} pmemobj pmem pthread)
 
 set(YCSB_TEST ycsb.cpp)
 add_executable(ycsb ${YCSB_TEST})
