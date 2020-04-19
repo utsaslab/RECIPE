@@ -486,7 +486,7 @@ leaf_retry:
 
     if (l->is_obsolete()) {
         l->unlock();
-        goto from_root;
+        goto restart;
     }
 
     l->prefetch();
