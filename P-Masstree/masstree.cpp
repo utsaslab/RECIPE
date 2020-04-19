@@ -6,24 +6,6 @@ using namespace MASS;
 namespace masstree {
 
 static constexpr uint64_t CACHE_LINE_SIZE = 64;
-static uint64_t CPU_FREQ_MHZ = 2100;
-static unsigned long write_latency = 0;
-
-static inline void cpu_pause()
-{
-    __asm__ volatile ("pause" ::: "memory");
-}
-
-static inline unsigned long read_tsc(void)
-{
-    unsigned long var;
-    unsigned int hi, lo;
-
-    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
-    var = ((unsigned long long int) hi << 32) | lo;
-
-    return var;
-}
 
 static inline void fence() {
     asm volatile("" : : : "memory");
@@ -39,7 +21,6 @@ static inline void clflush(char *data, int len, bool fence)
     if (fence)
         mfence();
     for(; ptr<data+len; ptr+=CACHE_LINE_SIZE){
-        unsigned long etsc = read_tsc() + (unsigned long)(write_latency*CPU_FREQ_MHZ/1000);
 #ifdef CLFLUSH
         asm volatile("clflush %0" : "+m" (*(volatile char *)ptr));
 #elif CLFLUSH_OPT
@@ -47,7 +28,6 @@ static inline void clflush(char *data, int len, bool fence)
 #elif CLWB
         asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(ptr)));
 #endif
-        while(read_tsc() < etsc) cpu_pause();
     }
     if (fence)
         mfence();
@@ -87,7 +67,7 @@ ThreadInfo masstree::getThreadInfo() {
 
 leafnode::leafnode(uint32_t level) : permutation(permuter::make_empty()) {
     level_ = level;
-    version_ = 0;
+    obsolete = 0;
     wlock = new std::mutex();
     next = NULL;
     leftmost_ptr = NULL;
@@ -99,7 +79,7 @@ leafnode::leafnode(uint32_t level) : permutation(permuter::make_empty()) {
 
 leafnode::leafnode(void *left, uint64_t key, void *right, uint32_t level = 1) : permutation(permuter::make_empty()) {
     level_ = level;
-    version_ = 0;
+    obsolete = 0;
     wlock = new std::mutex();
     next = NULL;
     highest = 0;
@@ -129,6 +109,8 @@ void leafnode::lock() {wlock->lock();}
 void leafnode::unlock() {wlock->unlock();}
 
 bool leafnode::trylock() {return wlock->try_lock();}
+
+uint32_t leafnode::is_obsolete() {return obsolete;}
 
 int leafnode::compare_key(const uint64_t a, const uint64_t b)
 {
@@ -194,17 +176,6 @@ leafnode *leafnode::advance_to_key(const uint64_t& key, bool checker)
 permuter leafnode::permute()
 {
     return permutation;
-}
-
-uint32_t leafnode::version()
-{
-    return version_;
-}
-
-bool leafnode::has_changed(uint32_t oldv)
-{
-    fence();
-    return (version_ != oldv);
 }
 
 void leafnode::prefetch() const
@@ -355,7 +326,6 @@ void masstree::put(uint64_t key, void *value, ThreadInfo &threadEpocheInfo)
 {
     EpocheGuard epocheGuard(threadEpocheInfo);
     key_indexed_position kx_;
-    uint32_t depth = 0;
     leafnode *next = NULL, *p = NULL;
 
 from_root:
@@ -420,7 +390,7 @@ leaf_retry:
         goto leaf_retry;
     }
 
-    if ((l->permute()).size() == 0 && l->highest_() != 0) {
+    if (l->is_obsolete()) {
         l->unlock();
         goto from_root;
     }
@@ -514,9 +484,9 @@ leaf_retry:
         goto leaf_retry;
     }
 
-    if ((l->permute()).size() == 0 && l->highest_() != 0) {
+    if (l->is_obsolete()) {
         l->unlock();
-        goto restart;
+        goto from_root;
     }
 
     l->prefetch();
@@ -555,12 +525,13 @@ leaf_retry:
 void masstree::del(uint64_t key, ThreadInfo &threadEpocheInfo)
 {
     EpocheGuard epocheGuard(threadEpocheInfo);
-    void *root = this->root_;
+    void *root = NULL;
     key_indexed_position kx_;
-    uint32_t depth = 0;
     leafnode *next;
     void *snapshot_v;
 
+from_root:
+    root = this->root_;
     leafnode *p = reinterpret_cast<leafnode *> (root);
     while (p->level() != 0) {
 inter_retry:
@@ -623,8 +594,10 @@ leaf_retry:
     fence();
 
     kx_ = l->key_lower_bound_by(key);
-    if (kx_.p < 0)
+    if (kx_.p < 0) {
+        l->unlock();
         return ;
+    }
 
     if (!(l->leaf_delete(this, NULL, 0, NULL, key, kx_, true, true, NULL, threadEpocheInfo))) {
         del(key, threadEpocheInfo);
@@ -719,6 +692,7 @@ leaf_retry:
         } else if (IS_LV(l->value(kx_.p)) && (LV_PTR(l->value(kx_.p)))->key_len == lv->key_len &&
                 memcmp(lv->fkey, (LV_PTR(l->value(kx_.p)))->fkey, lv->key_len) == 0) {
             if (!(l->leaf_delete(this, root, depth, lv, lv->fkey[depth], kx_, true, true, NULL, threadEpocheInfo))) {
+                free(lv);
                 del(key, threadEpocheInfo);
             }
         } else {
@@ -864,13 +838,14 @@ leaf_retry:
     return p;
 }
 
-leafnode *leafnode::search_for_leftsibling(void *root, uint64_t key, uint32_t level, leafnode *right)
+leafnode *leafnode::search_for_leftsibling(void **root, uint64_t key, uint32_t level, leafnode *right)
 {
     leafnode *p;
     key_indexed_position kx_;
     leafnode *next;
 
-    p = reinterpret_cast<leafnode *> (root);
+from_root:
+    p = reinterpret_cast<leafnode *> (*root);
     while (p->level() > level) {
 inter_retry:
         next = p->advance_to_key(key, true);
@@ -907,6 +882,11 @@ leaf_retry:
             p->unlock();
             p = next;
             goto leaf_retry;
+        }
+
+        if (p->is_obsolete()) {
+            p->unlock();
+            goto from_root;
         }
     } else {
         if (p == right)
@@ -971,8 +951,7 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
 
         if (width != LEAF_WIDTH)
             perml.exchange(perml.size(), LEAF_WIDTH - 1);
-        nl->version_++;
-        fence();
+
         nl->permutation = perml.value();
         clflush((char *)(&nl->permutation), sizeof(permuter), true);
 
@@ -1042,7 +1021,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
         fence();
         this->permutation = cp.value();
         clflush((char *)(&this->permutation), sizeof(permuter), true);
-
+        if (lv != NULL) threadInfo.getEpoche().markNodeForDeletion((LV_PTR(this->value(kx_.p))), threadInfo);
         this->unlock();
         ret = this;
     } else {
@@ -1065,7 +1044,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
                 nr->unlock();
                 return nr;
             } else {
-                nl = search_for_leftsibling(p->entry[pkx_.p].value, nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
+                nl = search_for_leftsibling(&p->entry[pkx_.p].value, nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
                 merge_state = t->merge(p->entry[pkx_.p].value, reinterpret_cast<void *> (p), depth, lv, nr->highest, nr->level_ + 1, NULL, threadInfo);
                 if (merge_state == 16) {
                     p = correct_layer_root(root, lv, depth, pkx_);
@@ -1084,7 +1063,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
                 nr->unlock();
                 return nr;
             } else {
-                nl = search_for_leftsibling(t->root(), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
+                nl = search_for_leftsibling(t->root_dp(), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
                 merge_state = t->merge(NULL, NULL, 0, NULL, nr->highest, nr->level_ + 1, NULL, threadInfo);
                 if (merge_state == 16)
                     t->setNewRoot(nr);
@@ -1096,6 +1075,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
         if (merge_state >= 0 && merge_state < 16) {
             nl->next = nr->next;
             clflush((char *)(&nl->next), sizeof(leafnode *), true);
+            nr->obsolete = 1;
             threadInfo.getEpoche().markNodeForDeletion(nr, threadInfo);
         }
 
@@ -1108,7 +1088,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
             nr->unlock();
             nl->unlock();
         } else {
-            nl->unlock();
+            nr->unlock();
         }
         ret = nr;
     }
@@ -1177,8 +1157,7 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
 
         if (width != LEAF_WIDTH)
             perml.exchange(perml.size(), LEAF_WIDTH - 1);
-        nl->version_++;
-        fence();
+
         nl->permutation = perml.value();
         clflush((char *)(&nl->permutation), sizeof(permuter), true);
 
@@ -1277,20 +1256,24 @@ int leafnode::inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *l
             leafnode *p = correct_layer_root(root, lv, depth, pkx_);
             if (p->value(pkx_.p) == nr) {
                 kx_.i = 16;
+                nr->obsolete = 1;
+                threadInfo.getEpoche().markNodeForDeletion(nr, threadInfo);
                 p->unlock();
                 nr->unlock();
                 return (ret = kx_.i);
             } else {
-                nl = search_for_leftsibling(p->entry[pkx_.p].value, nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
+                nl = search_for_leftsibling(&p->entry[pkx_.p].value, nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
                 merge_state = t->merge(p->entry[pkx_.p].value, root, depth, lv, nr->highest, nr->level_ + 1, nl, threadInfo);
             }
         } else {
             if (t->root() == nr) {
                 kx_.i = 16;
+                nr->obsolete = 1;
+                threadInfo.getEpoche().markNodeForDeletion(nr, threadInfo);
                 nr->unlock();
                 return (ret = kx_.i);
             } else {
-                nl = search_for_leftsibling(t->root(), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
+                nl = search_for_leftsibling(t->root_dp(), nr->highest ? nr->highest - 1 : nr->highest, nr->level_, nr);
                 merge_state = t->merge(NULL, NULL, 0, NULL, nr->highest, nr->level_ + 1, nl, threadInfo);
             }
         }
@@ -1299,16 +1282,19 @@ int leafnode::inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *l
         if (merge_state >= 0 && merge_state < 16) {
             nl->next = nr->next;
             clflush((char *)(&nl->next), sizeof(leafnode *), true);
+            nr->obsolete = 1;
             threadInfo.getEpoche().markNodeForDeletion(nr, threadInfo);
         } else if (merge_state == 16) {
             kx_.i = 16;
+            nr->obsolete = 1;
+            threadInfo.getEpoche().markNodeForDeletion(nr, threadInfo);
         }
 
         if (nl != nr) {
             nr->unlock();
             nl->unlock();
         } else {
-            nl->unlock();
+            nr->unlock();
         }
     }
 

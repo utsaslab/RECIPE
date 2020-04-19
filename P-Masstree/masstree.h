@@ -74,6 +74,8 @@ class masstree {
 
         void *root() {return root_;}
 
+        void **root_dp() {return &root_;}
+
         void setNewRoot(void *new_root);
 
         void put(uint64_t key, void *value, MASS::ThreadInfo &threadEpocheInfo);
@@ -324,7 +326,7 @@ class permuter {
 class leafnode {
     private:
         uint32_t level_;        // 4bytes
-        uint32_t version_;      // 4bytes
+        uint32_t obsolete;      // 4bytes
         std::mutex *wlock;      // 8bytes
         leafnode *next;         // 8bytes
         leafnode *leftmost_ptr; // 8bytes
@@ -356,6 +358,8 @@ class leafnode {
 
         bool trylock();
 
+        uint32_t is_obsolete();
+
         int compare_key(const uint64_t a, const uint64_t b);
 
         leafnode *advance_to_key(const uint64_t& key, bool checker);
@@ -386,11 +390,7 @@ class leafnode {
         int inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key,
                 key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, leafnode *child, MASS::ThreadInfo &threadInfo);
 
-        bool has_changed(uint32_t oldv);
-
         void prefetch() const;
-
-        uint32_t version();
 
         uint32_t level() {return level_;}
 
@@ -416,7 +416,7 @@ class leafnode {
 
         leafvalue *smallest_leaf(size_t key_len, uint64_t value);
 
-        leafnode *search_for_leftsibling(void *root, uint64_t key, uint32_t level, leafnode *right);
+        leafnode *search_for_leftsibling(void **root, uint64_t key, uint32_t level, leafnode *right);
 };
 
 }
