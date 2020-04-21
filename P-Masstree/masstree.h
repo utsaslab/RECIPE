@@ -103,7 +103,7 @@ class masstree {
 
         int scan(uint64_t min, int num, uint64_t *buf, MASS::ThreadInfo &threadEpocheInfo);
 
-        int scan(char *min, int num, leafvalue *buf[], MASS::ThreadInfo &threadEpocheInfo);
+        int scan(char *min, int num, uint64_t *buf, MASS::ThreadInfo &threadEpocheInfo);
 };
 
 class permuter {
@@ -417,7 +417,7 @@ class leafnode {
 
         void check_for_recovery(masstree *t, leafnode *left, leafnode *right, void *root, uint32_t depth, leafvalue *lv);
 
-        void get_range(leafvalue * &lv, int num, int &count, leafvalue *buf[], leafnode *root, uint32_t depth);
+        void get_range(leafvalue * &lv, int num, int &count, uint64_t *buf, leafnode *root, uint32_t depth);
 
         leafvalue *smallest_leaf(size_t key_len, uint64_t value);
 
