@@ -325,15 +325,15 @@ class permuter {
 
 class leafnode {
     private:
+        permuter permutation;   // 8bytes
+        kv entry[LEAF_WIDTH];   // 240bytes
+        leafnode *next;         // 8bytes
         uint32_t level_;        // 4bytes
         uint32_t obsolete;      // 4bytes
         std::mutex *wlock;      // 8bytes
-        leafnode *next;         // 8bytes
         leafnode *leftmost_ptr; // 8bytes
         uint64_t highest;       // 8bytes
-        permuter permutation;   // 8bytes
         uint64_t dummy[2];      // 16bytes
-        kv entry[LEAF_WIDTH];
 
     public:
         leafnode(uint32_t level);
