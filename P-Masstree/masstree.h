@@ -92,7 +92,7 @@ class masstree {
 
         void split(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *right, uint32_t level, void *child);
 
-        int merge(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, uint32_t level, void *child, MASS::ThreadInfo &threadInfo);
+        int merge(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, uint32_t level, MASS::ThreadInfo &threadInfo);
 
         leafvalue *make_leaf(char *key, size_t key_len, uint64_t value);
 
@@ -362,7 +362,7 @@ class leafnode {
 
         int compare_key(const uint64_t a, const uint64_t b);
 
-        leafnode *advance_to_key(const uint64_t& key, bool checker);
+        leafnode *advance_to_key(const uint64_t& key);
 
         void assign(int p, const uint64_t& key, void *value);
 
@@ -376,19 +376,15 @@ class leafnode {
 
         int split_into(leafnode *nr, int p, const uint64_t& key, void *value, uint64_t& split_key);
 
-        void split_into_inter(leafnode *nr, int p, const uint64_t& key, void *value, uint64_t& split_key);
+        void split_into_inter(leafnode *nr, uint64_t& split_key);
 
-        void *leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key,
-                void *value, key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling);
+        void *leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *value, key_indexed_position &kx_);
 
-        void *leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key,
-                key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, MASS::ThreadInfo &threadInfo);
+        void *leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, key_indexed_position &kx_, MASS::ThreadInfo &threadInfo);
 
-        void *inter_insert(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *value,
-                key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, leafnode *child);
+        void *inter_insert(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *value, key_indexed_position &kx_, leafnode *child);
 
-        int inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key,
-                key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, leafnode *child, MASS::ThreadInfo &threadInfo);
+        int inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, key_indexed_position &kx_, MASS::ThreadInfo &threadInfo);
 
         void prefetch() const;
 
