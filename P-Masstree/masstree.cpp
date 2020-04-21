@@ -1576,10 +1576,10 @@ leaf_retry:
                 goto from_root;
             }
         } else {
-            snapshot_v = &((LV_PTR(l->value(kx_.p)))->value);
+            snapshot_v = (void *)((LV_PTR(l->value(kx_.p)))->value);
             if (l->key(kx_.p) == lv->fkey[depth] && (LV_PTR(l->value(kx_.p)))->key_len == lv->key_len
                     && memcmp((LV_PTR(l->value(kx_.p)))->fkey, lv->fkey, lv->key_len) == 0) {
-                if (snapshot_v == &((LV_PTR(l->value(kx_.p)))->value)) {
+                if (snapshot_v == (void *)((LV_PTR(l->value(kx_.p)))->value)) {
                     free(lv);
                     return snapshot_v;
                 }
@@ -1620,7 +1620,7 @@ leaf_retry:
     }
 }
 
-void leafnode::get_range(leafvalue * &lv, int num, int &count, leafvalue *buf[], leafnode *root, uint32_t depth)
+void leafnode::get_range(leafvalue * &lv, int num, int &count, uint64_t *buf, leafnode *root, uint32_t depth)
 {
     key_indexed_position kx_;
     leafnode *next;
@@ -1685,14 +1685,14 @@ leaf_retry:
                 snapshot_v = (LV_PTR(snapshot_v));
                 if (l->key(perm[i]) > lv->fkey[depth]) {
                     if (snapshot_v == (LV_PTR(l->value(perm[i]))))
-                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v);
+                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v)->value;
                     else {
                         count = backup;
                         goto leaf_retry;
                     }
                 } else if (l->key(perm[i]) == lv->fkey[depth] && memcmp((LV_PTR(l->value(perm[i])))->fkey, lv->fkey, lv->key_len) >= 0) {
                     if (snapshot_v == (LV_PTR(l->value(perm[i]))))
-                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v);
+                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v)->value;
                     else {
                         count = backup;
                         goto leaf_retry;
@@ -1713,7 +1713,7 @@ leaf_retry:
     }
 }
 
-int masstree::scan(char *min, int num, leafvalue *buf[], ThreadInfo &threadEpocheInfo)
+int masstree::scan(char *min, int num, uint64_t *buf, ThreadInfo &threadEpocheInfo)
 {
     EpocheGuard epocheGuard(threadEpocheInfo);
     void *root = this->root_;
@@ -1782,14 +1782,14 @@ leaf_retry:
                 snapshot_v = (LV_PTR(snapshot_v));
                 if (l->key(perm[i]) > lv->fkey[depth]) {
                     if (snapshot_v == (LV_PTR(l->value(perm[i]))))
-                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v);
+                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v)->value;
                     else {
                         count = backup;
                         goto leaf_retry;
                     }
                 } else if (l->key(perm[i]) == lv->fkey[depth] && memcmp((LV_PTR(l->value(perm[i])))->fkey, lv->fkey, lv->key_len) >= 0) {
                     if (snapshot_v == (LV_PTR(l->value(perm[i]))))
-                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v);
+                        buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v)->value;
                     else {
                         count = backup;
                         goto leaf_retry;

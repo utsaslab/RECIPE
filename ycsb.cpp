@@ -559,13 +559,13 @@ void ycsb_load_run_string(int index_type, int wl, int kt, int ap, int num_thread
                         tree->put((char *)keys[i]->fkey, keys[i]->value, t);
                     } else if (ops[i] == OP_READ) {
                         uint64_t *ret = reinterpret_cast<uint64_t *> (tree->get((char *)keys[i]->fkey, t));
-                        if (ap == UNIFORM && *ret != keys[i]->value) {
-                            printf("[MASS] search key = %lu, search value = %lu\n", keys[i]->value, *ret);
+                        if (ap == UNIFORM && (uint64_t) ret != keys[i]->value) {
+                            printf("[MASS] search key = %lu, search value = %lu\n", keys[i]->value, ret);
                             exit(1);
                         }
                     } else if (ops[i] == OP_SCAN) {
                         int resultsFound;
-                        masstree::leafvalue *results[200];
+                        uint64_t results[200];
                         resultsFound = tree->scan((char *)keys[i]->fkey, ranges[i], results, t);
                     } else if (ops[i] == OP_DELETE) {
                         tree->del((char *)keys[i]->fkey, t);
