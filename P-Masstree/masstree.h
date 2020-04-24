@@ -338,7 +338,7 @@ class leafnode {
         uint64_t wlock;         // 8bytes
         uint64_t leftmost_ptr;  // 8bytes
         uint64_t highest;       // 8bytes
-        uint64_t dummy[2];      // 16bytes
+        uint64_t dummy[4];      // 32bytes
 
     public:
         leafnode(uint32_t level);
