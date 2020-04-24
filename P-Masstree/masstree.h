@@ -333,7 +333,7 @@ class leafnode {
         std::mutex *wlock;      // 8bytes
         leafnode *leftmost_ptr; // 8bytes
         uint64_t highest;       // 8bytes
-        uint64_t dummy[2];      // 16bytes
+        uint64_t dummy[4];      // 32bytes
 
     public:
         leafnode(uint32_t level);
