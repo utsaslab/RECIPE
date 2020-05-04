@@ -8,6 +8,17 @@ Please cite the following paper if you use the RECIPE approach or RECIPE-convert
 Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram. 
 *Proceedings of the The 27th ACM Symposium on Operating Systems Principles (SOSP 19)*. 
 [Paper PDF](https://www.cs.utexas.edu/~vijay/papers/sosp19-recipe.pdf). [Extended version(arXiv)](https://arxiv.org/abs/1909.13670). [Bibtex](https://www.cs.utexas.edu/~vijay/bibtex/sosp19-recipe.bib).
+```
+@InProceedings{LeeEtAl19-Recipe,
+  title =        "{RECIPE: Converting Concurrent DRAM Indexes to Persistent-Memory Indexes}",
+  author =       "Se Kwon Lee and  Jayashree Mohan and  Sanidhya Kashyap and  Taesoo Kim and  Vijay Chidambaram",
+  booktitle =    "Proceedings of the 27th ACM Symposium on Operating
+                  Systems Principles (SOSP '19)",
+  month =        "October",
+  year =         "2019",
+  address =      "Ontario, Canada",
+}
+```
 
 ## Integrating RECIPE indexes into your own project
 
@@ -15,6 +26,12 @@ Apart from benchmark code with `ycsb.cpp`, we provide simple example codes (`P-*
 to help developers who want to apply RECIPE indexes into their own project to easily identify how to use each index's APIs. 
 These example source codes run insert and lookup operations with custom integer keys. For more details of usage for each index, 
 please refer to `P-*/README.md` in each index's directory and `ycsb.cpp` as well.
+
+## Important Limitation
+
+The RECIPE data structures in the master branch use a volatile memory allocator ([libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)) so that RECIPE can be compared in an apples-to-apples manner with prior work like FAST and FAIR and CCEH, which also use volatile allocators (and thereby do not provide crash consistency). Thus, if you use RECIPE data structures from the master branch on PM, the data structures will **not** have crash consistency.
+
+The `pmdk` [branch](https://github.com/utsaslab/RECIPE/blob/pmdk/P-CLHT/README.md) contains RECIPE data stuctures ported to use PMDK's non-volatile allocators. The data structures in this branch will recover correctly after crashes. CLHT and Masstree have been converted to use the non-volatile alloactor, and we are working on the three other data structures. Please use this branch if you require crash recovery. 
 
 ## Contents
 
