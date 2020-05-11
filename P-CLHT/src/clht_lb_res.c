@@ -173,8 +173,8 @@ static inline void clflush_next_check(char *data, int len, bool fence)
 #elif CLWB
         asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(ptr)));
 #endif
-		if (clht_ptr_from_off( ((bucket_t *)data)->next_off ) )
-            clflush_next_check((char *)clht_ptr_from_off( ((bucket_t *)data)->next_off ), sizeof(bucket_t), false);
+		if (((bucket_t *)ptr)->next)
+            clflush_next_check((char *)(((bucket_t *)ptr)->next), sizeof(bucket_t), false);
         while(read_tsc() < etsc) cpu_pause();
     }
     if (fence)

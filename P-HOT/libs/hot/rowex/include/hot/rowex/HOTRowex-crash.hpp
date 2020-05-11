@@ -423,7 +423,7 @@ inline idx::contenthelpers::OptionalValue<bool> HOTRowex<ValueType, KeyExtractor
 #endif
 			currentStackEntry->updateChildPointer(hot::commons::createTwoEntriesNode<HOTRowexChildPointer, HOTRowexNode>(currentSplitEntries)->toChildPointer());
             hot::commons::mfence();
-            hot::commons::clflush(reinterpret_cast <char *> (&currentStackEntry->getChildPointerLocation()), sizeof(intptr_t));
+            hot::commons::clflush(reinterpret_cast <char *> (currentStackEntry->getChildPointerLocation()), sizeof(intptr_t));
             hot::commons::mfence();
 			//std::cout << "Intermediate HOTRowexNode creation: " << valueToInsert << std::endl;
 		}
@@ -443,7 +443,7 @@ inline void HOTRowex<ValueType, KeyExtractor>::leafNodePushDown(typename HOTRowe
         hot::commons::InsertInformation const & insertInformation, HOTRowexChildPointer const & valueToInsert) {
 	leafEntry.updateChildPointer(hot::commons::createTwoEntriesNode<HOTRowexChildPointer, HOTRowexNode>(hot::commons::BiNode<HOTRowexChildPointer>::createFromExistingAndNewEntry(insertInformation.mKeyInformation, leafEntry.getChildPointer(), valueToInsert))->toChildPointer());
     hot::commons::mfence();
-    hot::commons::clflush(reinterpret_cast<char *> (&leafEntry.getChildPointerLocation()), sizeof(intptr_t));
+    hot::commons::clflush(reinterpret_cast<char *> (leafEntry.getChildPointerLocation()), sizeof(intptr_t));
     hot::commons::mfence();
 }
 
@@ -456,7 +456,7 @@ inline void HOTRowex<ValueType, KeyExtractor>::normalInsert(typename HOTRowex<Va
 		})
 	);
     hot::commons::mfence();
-    hot::commons::clflush(reinterpret_cast <char *> (&currentNodeStackEntry.getChildPointerLocation()), sizeof(intptr_t));
+    hot::commons::clflush(reinterpret_cast <char *> (currentNodeStackEntry.getChildPointerLocation()), sizeof(intptr_t));
     hot::commons::mfence();
 }
 
@@ -516,7 +516,7 @@ template<typename ValueType, template <typename> typename KeyExtractor> inline v
     hot::commons::mfence();
     hot::commons::clflush(reinterpret_cast <char *> (&newNode.getNode()->getPointers()[entryIndex]), sizeof(intptr_t));
     hot::commons::mfence();
-    hot::commons::clflush(reinterpret_cast <char *> (&currentNodeStackEntry.getChildPointerLocation()), sizeof(intptr_t));
+    hot::commons::clflush(reinterpret_cast <char *> (currentNodeStackEntry.getChildPointerLocation()), sizeof(intptr_t));
     hot::commons::mfence();
 }
 

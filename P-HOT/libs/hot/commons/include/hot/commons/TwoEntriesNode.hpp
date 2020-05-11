@@ -28,6 +28,7 @@ template<typename ChildPointerType, template <typename, typename> typename NodeT
 	hot::commons::NodeAllocationInformation const & allocationInformation =
         hot::commons::NodeAllocationInformations<NodeTemplate<SingleMaskPartialKeyMapping, uint8_t>>::getAllocationInformation(NUMBER_ENTRIES_IN_TWO_ENTRIES_NODE);
     clflush(reinterpret_cast <char *> (node), allocationInformation.mTotalSizeInBytes);
+    mfence();
 	return node;
 };
 
