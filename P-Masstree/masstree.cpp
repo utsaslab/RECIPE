@@ -52,13 +52,15 @@ void lock_initialization()
 
 masstree::masstree() {
     leafnode *init_root = new leafnode(0);
+    clflush(init_root, sizeof(leafnode), true);
     root_ = init_root;
-    clflush((char *)root_, sizeof(leafnode), true);
+    clflush((char *)&root_, sizeof(void *), true);
 }
 
 masstree::masstree (void *new_root) {
+    clflush((char *)new_root, sizeof(leafnode), true);
     root_ = new_root;
-    clflush((char *)root_, sizeof(leafnode), true);      // 304 is the leafnode size of masstree
+    clflush((char *)&root_, sizeof(void *), true);
 }
 
 ThreadInfo masstree::getThreadInfo() {
