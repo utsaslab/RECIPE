@@ -358,7 +358,7 @@ namespace ART_ROWEX {
             if (N::isLeaf(nextNode)) {
                 node->lockVersionOrRestart(v, needRestart);
                 if (needRestart) goto restart;
-		Key *key;
+                Key *key;
                 key = N::getLeaf(nextNode);
 
                 level++;

@@ -10,15 +10,13 @@ namespace ART_ROWEX {
             return false;
         }
 
-        keys[compactCount].store(flipSign(key), flush ? std::memory_order_release : std::memory_order_relaxed);
-        compactCount++;
+        uint16_t nextIndex = compactCount++;
         count++;
-        // this clflush will atomically flush the cache line including counters and entire key entries
-        if (flush) clflush((char *)this, sizeof(uintptr_t), true, true);
-
-        children[compactCount].store(n, flush ? std::memory_order_release : std::memory_order_relaxed);
-        if (flush) clflush((char *)&children[compactCount], sizeof(N *), false, true);
-
+        keys[nextIndex].store(flipSign(key), flush ? std::memory_order_release : std::memory_order_relaxed);
+        // this clflush will failure-atomically flush the cache line including counters and entire key entries
+        if (flush) clflush((char *)this, sizeof(uintptr_t), false, true);
+        children[nextIndex].store(n, flush ? std::memory_order_release : std::memory_order_relaxed);
+        if (flush) clflush((char *)&children[nextIndex], sizeof(N *), false, true);
         return true;
     }
 
