@@ -52,7 +52,7 @@ void lock_initialization()
 
 masstree::masstree() {
     leafnode *init_root = new leafnode(0);
-    clflush(init_root, sizeof(leafnode), true);
+    clflush((char *)init_root, sizeof(leafnode), true);
     root_ = init_root;
     clflush((char *)&root_, sizeof(void *), true);
 }
