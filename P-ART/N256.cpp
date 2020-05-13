@@ -14,6 +14,10 @@ namespace ART_ROWEX {
     }
 
     inline bool N256::insert(uint8_t key, N *val, bool flush) {
+        if (count >= 256) {
+            return false;
+        }
+
         children[key].store(val, flush ? std::memory_order_release : std::memory_order_relaxed);
         if (flush) clflush((char *)&children[key], sizeof(N *), false, true);
         count++;

@@ -18,10 +18,12 @@ namespace ART_ROWEX {
         if (compactCount == 4) {
             return false;
         }
-        keys[compactCount].store(key, flush ? std::memory_order_release : std::memory_order_relaxed);
-        children[compactCount].store(n, flush ? std::memory_order_release : std::memory_order_relaxed);
-        compactCount++;
+
+        uint16_t nextIndex = compactCount++;
         count++;
+        keys[nextIndex].store(key, flush ? std::memory_order_release : std::memory_order_relaxed);
+        children[nextIndex].store(n, flush ? std::memory_order_release : std::memory_order_relaxed);
+
         // As the size of node4 is lower than cache line size (64bytes),
         // only one clflush is required to atomically synchronize its updates
         if (flush) clflush((char *)this, sizeof(N4), true, true);
