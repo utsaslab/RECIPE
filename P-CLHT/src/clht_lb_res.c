@@ -304,13 +304,10 @@ clht_create(uint64_t num_buckets)
 
         if (ht_ptr == NULL)
         {
-            free(w);
+            perror("clht_hashtable is null\n");
             return NULL;
         }
 
-        w->resize_lock = LOCK_FREE;
-        w->gc_lock = LOCK_FREE;
-        w->status_lock = LOCK_FREE;
         w->version_list = NULL;
         w->version_min = 0;
         w->ht_oldest = ht_ptr;
@@ -320,6 +317,10 @@ clht_create(uint64_t num_buckets)
         clflush((char *)ht_ptr, sizeof(clht_hashtable_t), true);
         clflush((char *)w, sizeof(clht_t), true);
     }
+
+    w->resize_lock = LOCK_FREE;
+    w->gc_lock = LOCK_FREE;
+    w->status_lock = LOCK_FREE;
 
     return w;
 }
@@ -377,11 +378,9 @@ TX_BEGIN(pop) {
     if (bucket_ptr == NULL) 
     {
         printf("** alloc: hashtable->table\n"); fflush(stdout);
-        free(hashtable);
+        perror("bucket_ptr is null\n");
         return NULL;
     }
-
-    //memset(bucket_ptr, 0, num_buckets * (sizeof(bucket_t)));
 
     uint64_t i;
     for (i = 0; i < num_buckets; i++)
