@@ -253,8 +253,6 @@ clht_bucket_create_stats(clht_hashtable_t* h, int* resize)
 
 clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
 
-// clht_hashtable_t* g_ptr;
-
     clht_t* 
 clht_create(uint64_t num_buckets)
 {
@@ -319,9 +317,11 @@ clht_create(uint64_t num_buckets)
         clflush((char *)clht_ptr_from_off(ht_ptr->table_off), num_buckets * sizeof(bucket_t), true);
         clflush((char *)ht_ptr, sizeof(clht_hashtable_t), true);
         clflush((char *)w, sizeof(clht_t), true);
+    } else {
+        w->resize_lock = LOCK_FREE;
+        w->gc_lock = LOCK_FREE;
+        w->status_lock = LOCK_FREE;
     }
-
-    
 
     return w;
 }
