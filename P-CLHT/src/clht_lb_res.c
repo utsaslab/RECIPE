@@ -173,8 +173,8 @@ static inline void clflush_next_check(char *data, int len, bool fence)
 #elif CLWB
         asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(ptr)));
 #endif
-		if (((bucket_t *)ptr)->next)
-            clflush_next_check((char *)(((bucket_t *)ptr)->next), sizeof(bucket_t), false);
+		if (((bucket_t *)ptr)->next_off != OID_NULL.off)
+            clflush_next_check((char *)clht_ptr_from_off((((bucket_t *)ptr)->next_off)), sizeof(bucket_t), false);
         while(read_tsc() < etsc) cpu_pause();
     }
     if (fence)
@@ -366,7 +366,8 @@ TX_BEGIN(pop) {
 #if PMDK_TRANSACTION
     table_oid = pmemobj_tx_zalloc(num_buckets * sizeof(bucket_t), TOID_TYPE_NUM(bucket_t));
 #else
-    if (pmemobj_alloc(pop, &table_oid, num_buckets * sizeof(bucket_t), TOID_TYPE_NUM(bucket_t), 0, 0)) 
+//    if (pmemobj_alloc(pop, &table_oid, num_buckets * sizeof(bucket_t), TOID_TYPE_NUM(bucket_t), 0, 0)) 
+    if (pmemobj_zalloc(pop, &table_oid, num_buckets * sizeof(bucket_t), TOID_TYPE_NUM(bucket_t))) 
     {
         fprintf(stderr, "pmemobj_alloc failed for table_oid in clht_hashtable_create\n");
         assert(0);
