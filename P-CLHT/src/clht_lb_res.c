@@ -308,6 +308,9 @@ clht_create(uint64_t num_buckets)
             return NULL;
         }
 
+        w->resize_lock = LOCK_FREE;
+        w->gc_lock = LOCK_FREE;
+        w->status_lock = LOCK_FREE;
         w->version_list = NULL;
         w->version_min = 0;
         w->ht_oldest = ht_ptr;
@@ -318,9 +321,7 @@ clht_create(uint64_t num_buckets)
         clflush((char *)w, sizeof(clht_t), true);
     }
 
-    w->resize_lock = LOCK_FREE;
-    w->gc_lock = LOCK_FREE;
-    w->status_lock = LOCK_FREE;
+    
 
     return w;
 }
