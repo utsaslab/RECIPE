@@ -60,19 +60,6 @@ with `non-temporal stores` coupled with memory fence for `lock-based implementat
 For `lock-free implementations` such as P-Bwtree, you can replace volatile CASs coupled with cache line flush instructions with 
 alternative software-based atomic-persistent primitives such as either `Link-and-Persist` ([[3]](#3), [paper](https://www.usenix.org/system/files/conference/atc18/atc18-david.pdf), [code](https://github.com/LPD-EPFL/nv-lf-structures)) or `PSwCAS` ([[6]](#6), [paper](https://ieeexplore.ieee.org/abstract/document/8509270), [code](https://github.com/microsoft/pmwcas)). 
 
-#### References
-<a id="1">[1]</a>
-Kumud Bhandari, et al. Makalu: Fast Recoverable Allocation of Non-volatile Memory, OOPSLA'16
-<a id="2">[2]</a>
-Nachshon Cohen, et al. Object-Oriented Recovery for Non-volatile Memory, OOPSLA'18
-<a id="3">[3]</a>
-Tudor David, et al. Log-Free Concurrent Data Structures, ATC'18
-<a id="4">[4]</a>
-Wentao Cai, et al. Understanding and optimizing persistent memory allocation, ISMM'20
-<a id="5">[5]</a>
-PMDK man page, https://pmem.io/pmdk/manpages/linux/master/libpmemobj/pmemobj_first.3.
-<a id="6">[6]</a>
-Tianzheng Wang, et al. Easy Lock-Free Indexing in Non-Volatile Memory, ICDE'18
 
 ## Contents
 
@@ -221,6 +208,25 @@ The RECIPE indices are currently being ported to PMDK to ensure the recoverabili
 For artifact evaluation, we will evaluate again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in [Benchmark details](https://github.com/utsaslab/RECIPE#benchmark-details) section below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
 
 **RECIPE** has been awarded three badges: **Artifact Available**, **Artifact Functional**, and **Results Reproduced**.
+
+## References
+<a id="1">[1]</a>
+Kumud Bhandari, et al. Makalu: Fast Recoverable Allocation of Non-volatile Memory, OOPSLA'16
+
+<a id="2">[2]</a>
+Nachshon Cohen, et al. Object-Oriented Recovery for Non-volatile Memory, OOPSLA'18
+
+<a id="3">[3]</a>
+Tudor David, et al. Log-Free Concurrent Data Structures, ATC'18
+
+<a id="4">[4]</a>
+Wentao Cai, et al. Understanding and optimizing persistent memory allocation, ISMM'20
+
+<a id="5">[5]</a>
+PMDK man page, https://pmem.io/pmdk/manpages/linux/master/libpmemobj/pmemobj_first.3.
+
+<a id="6">[6]</a>
+Tianzheng Wang, et al. Easy Lock-Free Indexing in Non-Volatile Memory, ICDE'18
 
 ## License
 
