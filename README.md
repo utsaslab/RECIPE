@@ -186,14 +186,18 @@ For artifact evaluation, we will evaluate again the performance of the index str
 Just for performance testing on real PM, you can use [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html), 
 which transparently converts all the dynamic memory allocations into Persistent Memory allocations.
 However, if you want to apply RECIPE indexes into your real PM application, you would need to change current volatile 
-memory allocators using [libpmem](https://pmem.io/pmdk/) APIs. Currently, a version of RECIPE is being developed using the PMDK library. Check out the `pmdk` [branch](https://github.com/utsaslab/RECIPE/blob/pmdk/P-CLHT/README.md)! 
+memory allocators using [libpmem](https://pmem.io/pmdk/) APIs. Currently, a version of RECIPE is being developed using the PMDK 
+library. Check out the `pmdk` [branch](https://github.com/utsaslab/RECIPE/blob/pmdk/P-CLHT/README.md)! 
 
 2. Current implementations only ensure the lowest level of isolation (Read Uncommitted) when using them for transactional systems, 
-since they are based on normal CASs and temporal stores coupled with cache line flush instructions. However, you may extend them
-to guarantee the higher level of isolation (Read Committed) by employing alternative primitives such as either Link-and-Persist 
-([paper](https://www.usenix.org/system/files/conference/atc18/atc18-david.pdf), [code](https://github.com/LPD-EPFL/nv-lf-structures)) 
-or PSwCAS ([paper](https://ieeexplore.ieee.org/abstract/document/8509270), [code](https://github.com/microsoft/pmwcas)) 
-and non-temporal stores coupled with memory fence.
+since they are based on normal CASs or temporal stores coupled with cache line flush instructions. However, it is not fundamental
+limitation of RECIPE conversions. You can easily extend them without modifying original index's algorithms to guarantee the higher 
+level of isolation (Read Committed) by replacing each final commit store (such as pointer swap) with a non-temporal store coupled 
+with memory fence for lock-based implementations including P-CLHT, P-HOT, P-ART, and P-Masstree. For lock-free implementations
+such as P-Bwtree, you can replace volatile CASs coupled with cache line flush instructions with alternative software-based primitives 
+such as either Link-and-Persist ([paper](https://www.usenix.org/system/files/conference/atc18/atc18-david.pdf), 
+[code](https://github.com/LPD-EPFL/nv-lf-structures)) or PSwCAS ([paper](https://ieeexplore.ieee.org/abstract/document/8509270), 
+[code](https://github.com/microsoft/pmwcas)). 
 
 ## License
 
