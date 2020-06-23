@@ -29,9 +29,50 @@ please refer to `P-*/README.md` in each index's directory and `ycsb.cpp` as well
 
 ## Important Limitation
 
-The RECIPE data structures in the master branch use a volatile memory allocator ([libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)) so that RECIPE can be compared in an apples-to-apples manner with prior work like FAST and FAIR and CCEH, which also use volatile allocators (and thereby do not provide crash consistency). Thus, if you use RECIPE data structures from the master branch on PM, the data structures will **not** have crash consistency.
+#### Persistent memory allocator
+The RECIPE data structures in the master branch use a volatile memory allocator ([libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)) 
+so that RECIPE can be compared in an apples-to-apples manner with prior work like FAST&FAIR and 
+CCEH, which also use volatile allocators (and thereby do not provide crash consistency). Thus, 
+if you use RECIPE data structures from the master branch on PM, the data structures will **not** have 
+crash consistency.
 
-The `pmdk` [branch](https://github.com/utsaslab/RECIPE/blob/pmdk/P-CLHT/README.md) contains RECIPE data stuctures ported to use PMDK's non-volatile allocators. The data structures in this branch will recover correctly after crashes. CLHT and Masstree have been converted to use the non-volatile alloactor, and we are working on the three other data structures. Please use this branch if you require crash recovery. 
+The current volatile allocator must be replaced with persistent memory allocator to ensure crash 
+consistency of memory allocator and to prevent permanent memory leaks. Especially, we recommend
+post-crash garbage collection rather than logging-based approaches to solve permanent memory leaks
+since logging-based approaches should constantly consume costs for recording logs during normal 
+runtime (We already described it through our SOSP publication). We are currently exploring various 
+post-crash garbage collection techniques ([[1]](#1), [[2]](#2), [[3]](#3), [[4]](#4), [[5]](#5)) to 
+apply them for RECIPE data structures.
+
+As a first step, we are working on replacing current volatile allocator with `pmdk` library.
+The `pmdk` [branch](https://github.com/utsaslab/RECIPE/blob/pmdk/P-CLHT/README.md) contains RECIPE data stuctures ported to use PMDK's 
+non-volatile allocators. The data structures in this branch will recover correctly after crashes. 
+CLHT and Masstree have been converted to use the non-volatile alloactor, and we are working on the 
+three other data structures and on solving permanent memory leaks. Please use this branch if you 
+require crash recovery. 
+
+#### Read Uncommitted & Read Committed (Transactional Isolation Levels)
+Current implementations only ensure the lowest level of isolation (Read Uncommitted) when using them for transactional systems, 
+since they are based on normal CASs or temporal stores coupled with cache line flush instructions. However, it is not fundamental
+limitation of RECIPE conversions. You can easily extend them, following RECIPE conversions, to guarantee the higher 
+level of isolation (Read Committed) by replacing each final commit stores (such as pointer swap) coupled with cache line flushes
+with `non-temporal stores` coupled with memory fence for `lock-based implementations` including P-CLHT, P-HOT, P-ART, and P-Masstree. 
+For `lock-free implementations` such as P-Bwtree, you can replace volatile CASs coupled with cache line flush instructions with 
+alternative software-based atomic-persistent primitives such as either `Link-and-Persist` ([[3]](#3), [paper](https://www.usenix.org/system/files/conference/atc18/atc18-david.pdf), [code](https://github.com/LPD-EPFL/nv-lf-structures)) or `PSwCAS` ([[6]](#6), [paper](https://ieeexplore.ieee.org/abstract/document/8509270), [code](https://github.com/microsoft/pmwcas)). 
+
+#### References
+<a id="1">[1]</a>
+Kumud Bhandari, et al. Makalu: Fast Recoverable Allocation of Non-volatile Memory, OOPSLA'16
+<a id="2">[2]</a>
+Nachshon Cohen, et al. Object-Oriented Recovery for Non-volatile Memory, OOPSLA'18
+<a id="3">[3]</a>
+Tudor David, et al. Log-Free Concurrent Data Structures, ATC'18
+<a id="4">[4]</a>
+Wentao Cai, et al. Understanding and optimizing persistent memory allocation, ISMM'20
+<a id="5">[5]</a>
+PMDK man page, https://pmem.io/pmdk/manpages/linux/master/libpmemobj/pmemobj_first.3.
+<a id="6">[6]</a>
+Tianzheng Wang, et al. Easy Lock-Free Indexing in Non-Volatile Memory, ICDE'18
 
 ## Contents
 
@@ -180,23 +221,6 @@ The RECIPE indices are currently being ported to PMDK to ensure the recoverabili
 For artifact evaluation, we will evaluate again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in [Benchmark details](https://github.com/utsaslab/RECIPE#benchmark-details) section below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
 
 **RECIPE** has been awarded three badges: **Artifact Available**, **Artifact Functional**, and **Results Reproduced**.
-
-## Limitations
-1. Current implementations are based on general volatile memory allocation API such as `malloc`, `posix_memalign`, `new`, and etc.
-Just for performance testing on real PM, you can use [libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html), 
-which transparently converts all the dynamic memory allocations into Persistent Memory allocations.
-However, if you want to apply RECIPE indexes into your real PM application, you would need to change current volatile 
-memory allocators using [libpmem](https://pmem.io/pmdk/) APIs. Currently, a version of RECIPE is being developed using the PMDK 
-library. Check out the `pmdk` [branch](https://github.com/utsaslab/RECIPE/blob/pmdk/P-CLHT/README.md)! 
-
-2. Current implementations only ensure the lowest level of isolation (Read Uncommitted) when using them for transactional systems, 
-since they are based on normal CASs or temporal stores coupled with cache line flush instructions. However, it is not fundamental
-limitation of RECIPE conversions. You can easily extend them, following RECIPE conversions, to guarantee the higher 
-level of isolation (Read Committed) by replacing each final commit stores coupled with cache line flushes (such as pointer swap) 
-with non-temporal stores coupled with memory fence for lock-based implementations including P-CLHT, P-HOT, P-ART, and P-Masstree. 
-For lock-free implementations such as P-Bwtree, you can replace volatile CASs coupled with cache line flush instructions with alternative 
-software-based atomic-persistent primitives such as either Link-and-Persist ([paper](https://www.usenix.org/system/files/conference/atc18/atc18-david.pdf), 
-[code](https://github.com/LPD-EPFL/nv-lf-structures)) or PSwCAS ([paper](https://ieeexplore.ieee.org/abstract/document/8509270), [code](https://github.com/microsoft/pmwcas)). 
 
 ## License
 
