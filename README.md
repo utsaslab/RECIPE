@@ -191,13 +191,12 @@ library. Check out the `pmdk` [branch](https://github.com/utsaslab/RECIPE/blob/p
 
 2. Current implementations only ensure the lowest level of isolation (Read Uncommitted) when using them for transactional systems, 
 since they are based on normal CASs or temporal stores coupled with cache line flush instructions. However, it is not fundamental
-limitation of RECIPE conversions. You can easily extend them without modifying original index's algorithms to guarantee the higher 
-level of isolation (Read Committed) by replacing each final commit store (such as pointer swap) with a non-temporal store coupled 
-with memory fence for lock-based implementations including P-CLHT, P-HOT, P-ART, and P-Masstree. For lock-free implementations
-such as P-Bwtree, you can replace volatile CASs coupled with cache line flush instructions with alternative software-based primitives 
-such as either Link-and-Persist ([paper](https://www.usenix.org/system/files/conference/atc18/atc18-david.pdf), 
-[code](https://github.com/LPD-EPFL/nv-lf-structures)) or PSwCAS ([paper](https://ieeexplore.ieee.org/abstract/document/8509270), 
-[code](https://github.com/microsoft/pmwcas)). 
+limitation of RECIPE conversions. You can easily extend them, following RECIPE conversions, to guarantee the higher 
+level of isolation (Read Committed) by replacing each final commit stores coupled with cache line flushes (such as pointer swap) 
+with non-temporal stores coupled with memory fence for lock-based implementations including P-CLHT, P-HOT, P-ART, and P-Masstree. 
+For lock-free implementations such as P-Bwtree, you can replace volatile CASs coupled with cache line flush instructions with alternative 
+software-based atomic-persistent primitives such as either Link-and-Persist ([paper](https://www.usenix.org/system/files/conference/atc18/atc18-david.pdf), 
+[code](https://github.com/LPD-EPFL/nv-lf-structures)) or PSwCAS ([paper](https://ieeexplore.ieee.org/abstract/document/8509270), [code](https://github.com/microsoft/pmwcas)). 
 
 ## License
 
