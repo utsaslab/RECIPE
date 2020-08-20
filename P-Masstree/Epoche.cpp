@@ -136,7 +136,7 @@ inline Epoche::~Epoche() {
             assert(cur->epoche < oldestEpoche);
             for (std::size_t i = 0; i < cur->nodesCount; ++i) {
                 free_objs = pmemobj_oid(cur->nodes[i]);
-                free(&free_objs);
+                pmemobj_free(&free_objs);
             }
             d.remove(cur, prev);
             cur = next;

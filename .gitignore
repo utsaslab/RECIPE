@@ -2,7 +2,7 @@ build/
 workloads/
 results/
 
-index-microbench/workloads
+index-microbench/workloads*
 index-microbench/ycsb-0.11.0.tar.gz
 index-microbench/YCSB
 index-microbench/workload_config.inp

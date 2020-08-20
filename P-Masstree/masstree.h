@@ -97,13 +97,13 @@ class masstree {
 
         void split(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *right, uint32_t level, void *child);
 
-        int merge(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, uint32_t level, void *child, MASS::ThreadInfo &threadInfo);
+        int merge(void *left, void *root, uint32_t depth, leafvalue *lv, uint64_t key, uint32_t level, MASS::ThreadInfo &threadInfo);
 
         leafvalue *make_leaf(char *key, size_t key_len, uint64_t value);
 
         int scan(uint64_t min, int num, uint64_t *buf, MASS::ThreadInfo &threadEpocheInfo);
 
-        int scan(char *min, int num, leafvalue *buf[], MASS::ThreadInfo &threadEpocheInfo);
+        int scan(char *min, int num, uint64_t *buf, MASS::ThreadInfo &threadEpocheInfo);
 };
 
 class permuter {
@@ -330,15 +330,15 @@ class permuter {
 
 class leafnode {
     private:
+        permuter permutation;   // 8bytes
+        kv entry[LEAF_WIDTH];   // 240bytes
+        uint64_t next;          // 8bytes
         uint32_t level_;        // 4bytes
         uint32_t obsolete;      // 4bytes
         uint64_t wlock;         // 8bytes
-        uint64_t next;          // 8bytes
         uint64_t leftmost_ptr;  // 8bytes
         uint64_t highest;       // 8bytes
-        permuter permutation;   // 8bytes
-        uint64_t dummy[2];      // 16bytes
-        kv entry[LEAF_WIDTH];
+        uint64_t dummy[4];      // 32bytes
 
     public:
         leafnode(uint32_t level);
@@ -367,7 +367,7 @@ class leafnode {
 
         int compare_key(const uint64_t a, const uint64_t b);
 
-        leafnode *advance_to_key(const uint64_t& key, bool checker);
+        leafnode *advance_to_key(const uint64_t& key);
 
         void assign(int p, const uint64_t& key, void *value);
 
@@ -381,19 +381,15 @@ class leafnode {
 
         int split_into(leafnode *nr, int p, const uint64_t& key, void *value, uint64_t& split_key);
 
-        void split_into_inter(leafnode *nr, int p, const uint64_t& key, void *value, uint64_t& split_key);
+        void split_into_inter(leafnode *nr, uint64_t& split_key);
 
-        void *leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key,
-                void *value, key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling);
+        void *leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *value, key_indexed_position &kx_);
 
-        void *leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key,
-                key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, MASS::ThreadInfo &threadInfo);
+        void *leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, key_indexed_position &kx_, MASS::ThreadInfo &threadInfo);
 
-        void *inter_insert(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *value,
-                key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, leafnode *child);
+        void *inter_insert(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key, void *value, key_indexed_position &kx_, leafnode *child);
 
-        int inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, uint64_t key,
-                key_indexed_position &kx_, bool flush, bool with_lock, leafnode *invalid_sibling, leafnode *child, MASS::ThreadInfo &threadInfo);
+        int inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *lv, key_indexed_position &kx_, MASS::ThreadInfo &threadInfo);
 
         void prefetch() const;
 
@@ -417,7 +413,7 @@ class leafnode {
 
         void check_for_recovery(masstree *t, leafnode *left, leafnode *right, void *root, uint32_t depth, leafvalue *lv);
 
-        void get_range(leafvalue * &lv, int num, int &count, leafvalue *buf[], leafnode *root, uint32_t depth);
+        void get_range(leafvalue * &lv, int num, int &count, uint64_t *buf, leafnode *root, uint32_t depth);
 
         leafvalue *smallest_leaf(size_t key_len, uint64_t value);
 

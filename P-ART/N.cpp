@@ -169,7 +169,6 @@ namespace ART_ROWEX {
         auto nBig = new biggerN(n->getLevel(), n->getPrefi());
         n->copyTo(nBig);
         nBig->insert(key, val, false);
-        clflush((char *)nBig, sizeof(biggerN), true, true);
 
         parentNode->writeLockOrRestart(needRestart);
         if (needRestart) {
@@ -178,6 +177,7 @@ namespace ART_ROWEX {
             return;
         }
 
+        clflush((char *)nBig, sizeof(biggerN), true, true);
         N::change(parentNode, keyParent, nBig);
         parentNode->writeUnlock();
 
@@ -186,24 +186,28 @@ namespace ART_ROWEX {
     }
 
     template<typename curN>
-    void N::insertCompact(curN *n, N *parentNode, uint8_t keyParent, uint8_t key, N *val, ThreadInfo &threadInfo, bool &needRestart) {
+    bool N::insertCompact(curN *n, N *parentNode, uint8_t keyParent, uint8_t key, N *val, ThreadInfo &threadInfo, bool &needRestart) {
         auto nNew = new curN(n->getLevel(), n->getPrefi());
         n->copyTo(nNew);
-        nNew->insert(key, val, false);
-        clflush((char *)nNew, sizeof(curN), true, true);
+        if (!nNew->insert(key, val, false)) {
+            delete nNew;
+            return false;
+        }
 
         parentNode->writeLockOrRestart(needRestart);
         if (needRestart) {
             delete nNew;
             n->writeUnlock();
-            return;
+            return true;
         }
 
+        clflush((char *)nNew, sizeof(curN), true, true);
         N::change(parentNode, keyParent, nNew);
         parentNode->writeUnlock();
 
         n->writeUnlockObsolete();
         threadInfo.getEpoche().markNodeForDeletion(n, threadInfo);
+        return true;
     }
 
     void N::insertAndUnlock(N *node, N *parentNode, uint8_t keyParent, uint8_t key, N *val, ThreadInfo &threadInfo, bool &needRestart) {
@@ -211,7 +215,8 @@ namespace ART_ROWEX {
             case NTypes::N4: {
                 auto n = static_cast<N4 *>(node);
                 if (n->compactCount == 4 && n->count <= 3) {
-                    insertCompact<N4>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
+                    if (!insertCompact<N4>(n, parentNode, keyParent, key, val, threadInfo, needRestart))
+                        insertGrow<N4, N16>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
                     break;
                 }
                 insertGrow<N4, N16>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
@@ -220,7 +225,8 @@ namespace ART_ROWEX {
             case NTypes::N16: {
                 auto n = static_cast<N16 *>(node);
                 if (n->compactCount == 16 && n->count <= 14) {
-                    insertCompact<N16>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
+                    if (!insertCompact<N16>(n, parentNode, keyParent, key, val, threadInfo, needRestart))
+                        insertGrow<N16, N48>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
                     break;
                 }
                 insertGrow<N16, N48>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
@@ -229,7 +235,8 @@ namespace ART_ROWEX {
             case NTypes::N48: {
                 auto n = static_cast<N48 *>(node);
                 if (n->compactCount == 48 && n->count != 48) {
-                    insertCompact<N48>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
+                    if (!insertCompact<N48>(n, parentNode, keyParent, key, val, threadInfo, needRestart))
+                        insertGrow<N48, N256>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
                     break;
                 }
                 insertGrow<N48, N256>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
@@ -237,8 +244,11 @@ namespace ART_ROWEX {
             }
             case NTypes::N256: {
                 auto n = static_cast<N256 *>(node);
-                n->insert(key, val, true);
-                node->writeUnlock();
+                if (n->insert(key, val, true)) {
+                    node->writeUnlock();
+                    break;
+                }
+                insertCompact<N256>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
                 break;
             }
         }
