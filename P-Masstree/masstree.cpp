@@ -270,13 +270,7 @@ leafvalue *leafnode::smallest_leaf(size_t key_len, uint64_t value)
 {
     size_t len = (key_len % sizeof(uint64_t)) == 0 ? key_len : (((key_len) / sizeof(uint64_t)) + 1) * sizeof(uint64_t);
 
-    PMEMoid ret;
-    if (pmemobj_alloc(pop, &ret, sizeof(leafvalue) + len, 0, 0, 0)) {
-        fprintf(stderr, "pmemobj_alloc failed for leaf allocation\n");
-        assert(0);
-    }
-
-    leafvalue *lv = reinterpret_cast<leafvalue *> (pmemobj_direct(ret));
+    leafvalue *lv = (leafvalue *) malloc(sizeof(leafvalue) + len);
     memset(lv, 0, sizeof(leafvalue) + len);
 
     lv->value = value;
