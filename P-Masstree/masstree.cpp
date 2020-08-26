@@ -345,7 +345,6 @@ void leafnode::make_new_layer(leafnode *l, key_indexed_position &kx_, leafvalue 
 
 void leafnode::check_for_recovery(masstree *t, leafnode *left, leafnode *right, void *root, uint32_t depth, leafvalue *lv)
 {
-    //printf("%s\n", __func__);
     permuter perm = left->permute();
 
     for (int i = perm.size() - 1; i >= 0; i--) {
@@ -630,9 +629,9 @@ inter_retry:
         if (next != p) {
             // check for recovery
             if (p->tryLock(needRestart)) {
-                if (next->tryLock(needRestart))
+                if (next->tryLock(needRestart)) {
                     p->check_for_recovery(this, p, next, NULL, 0, NULL);
-                else
+                } else
                     p->writeUnlock(false);
             }
             p = next;
@@ -650,6 +649,8 @@ inter_retry:
         p->prefetch();
         fence();
 
+        kx_ = p->key_lower_bound(key);
+
         if (kx_.i >= 0)
             snapshot_v = p->value(kx_.p);
         else
@@ -666,11 +667,11 @@ inter_retry:
 leaf_retry:
     next = l->advance_to_key(key);
     if (next != l) {
-        //check for recovery
+        // check for recovery
         if (l->tryLock(needRestart)) {
-            if (next->tryLock(needRestart))
+            if (next->tryLock(needRestart)) {
                 l->check_for_recovery(this, l, next, NULL, 0, NULL);
-            else
+            } else
                 l->writeUnlock(false);
         }
 
@@ -933,6 +934,12 @@ leafnode *leafnode::correct_layer_root(void *root, leafvalue *lv, uint32_t depth
     leafnode *p = reinterpret_cast<leafnode *> (root);
 
 leaf_retry:
+    oldp = p->advance_to_key(lv->fkey[depth - 1]);
+    if (oldp != p) {
+        p = oldp;
+        goto leaf_retry;
+    }
+    
     p->writeLockOrRestart(needRestart);
     if (needRestart)
         goto leaf_retry;
@@ -1007,6 +1014,12 @@ inter_retry:
     }
 
 leaf_retry:
+    next = p->advance_to_key(key);
+    if (next != p) {
+        p = next;
+        goto leaf_retry;
+    }
+
     if (p->tryLock(needRestart)) {
         next = p->advance_to_key(key);
         if (next != p) {
@@ -1042,7 +1055,9 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
 
         permuter cp = this->permutation.value();
         cp.insert_from_back(kx_.i);
-        movnt64((uint64_t *)(&this->permutation), cp.value());
+        fence();
+        this->permutation = cp.value();
+        clflush((char *)(&this->permutation), sizeof(permuter), true);
 
         this->writeUnlock(isOverWrite);
         ret = this;
@@ -1150,7 +1165,9 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
     if (this->permutation.size() > LEAF_THRESHOLD) {
         permuter cp = this->permutation.value();
         cp.remove_to_back(kx_.i);
-        movnt64((uint64_t *)(&this->permutation), cp.value());
+        fence();
+        this->permutation = cp.value();
+        clflush((char *)(&this->permutation), sizeof(permuter), true);
         if (lv != NULL) threadInfo.getEpoche().markNodeForDeletion((LV_PTR(this->value(kx_.p))), threadInfo);
         this->writeUnlock(false);
         ret = this;
@@ -1471,6 +1488,7 @@ void masstree::split(void *left, void *root, uint32_t depth, leafvalue *lv,
         p = reinterpret_cast<leafnode *> (root_);
     }
 
+from_root:
     while (p->level() > level) {
 inter_retry:
         next = p->advance_to_key(key);
@@ -1480,8 +1498,17 @@ inter_retry:
         }
 
         v = p->readLockOrRestart(needRestart);
-        if (needRestart)
-            goto inter_retry;
+        if (needRestart) {
+            if (needRestart == LOCKED)
+                goto inter_retry;
+            else {
+                if (depth > 0)
+                    p = reinterpret_cast<leafnode *> (left);
+                else
+                    p = reinterpret_cast<leafnode *> (root_);
+                goto from_root;
+            }
+        }
 
         p->prefetch();
         fence();
@@ -1501,9 +1528,24 @@ inter_retry:
     }
 
 leaf_retry:
-    p->writeLockOrRestart(needRestart);
-    if (needRestart)
+    next = p->advance_to_key(key);
+    if (next != p) {
+        p = next;
         goto leaf_retry;
+    }
+
+    p->writeLockOrRestart(needRestart);
+    if (needRestart) {
+        if (needRestart == LOCKED)
+            goto leaf_retry;
+        else {
+            if (depth > 0)
+                p = reinterpret_cast<leafnode *> (left);
+            else
+                p = reinterpret_cast<leafnode *> (root_);
+            goto from_root;
+        }
+    }
 
     next = p->advance_to_key(key);
     if (next != p) {
@@ -1550,6 +1592,7 @@ int masstree::merge(void *left, void *root, uint32_t depth, leafvalue *lv, uint6
         p = reinterpret_cast<leafnode *> (this->root_);
     }
 
+from_root:
     while (p->level() > level) {
 inter_retry:
         next = p->advance_to_key(key);
@@ -1559,8 +1602,17 @@ inter_retry:
         }
 
         v = p->readLockOrRestart(needRestart);
-        if (needRestart)
-            goto inter_retry;
+        if (needRestart) {
+            if (needRestart == LOCKED)
+                goto inter_retry;
+            else {
+                if (depth > 0)
+                    p = reinterpret_cast<leafnode *> (left);
+                else
+                    p = reinterpret_cast<leafnode *> (this->root_);
+                goto from_root;
+            }
+        }
 
         p->prefetch();
         fence();
@@ -1580,9 +1632,24 @@ inter_retry:
     }
 
 leaf_retry:
-    p->writeLockOrRestart(needRestart);
-    if (needRestart)
+    next = p->advance_to_key(key);
+    if (next != p) {
+        p = next;
         goto leaf_retry;
+    }
+
+    p->writeLockOrRestart(needRestart);
+    if (needRestart) {
+        if (needRestart == LOCKED)
+            goto leaf_retry;
+        else {
+            if (depth > 0)
+                p = reinterpret_cast<leafnode *> (left);
+            else
+                p = reinterpret_cast<leafnode *> (this->root_);
+            goto from_root;
+        }
+    }
 
     next = p->advance_to_key(key);
     if (next != p) {
@@ -1682,7 +1749,7 @@ leaf_retry:
                 l = next;
                 goto leaf_retry;
             }
-
+#if 0
             printf("should not enter here\n");
             printf("key = %lu, searched key = %lu, key index = %d\n", key, l->key(kx_.p), kx_.p);
             permuter cp = l->permute();
@@ -1697,8 +1764,8 @@ leaf_retry:
                     printf("next key = %lu\n", l->next_()->key(cp[i]));
                 }
             }
+#endif
         }
-
         return snapshot_v;
     }
 }
