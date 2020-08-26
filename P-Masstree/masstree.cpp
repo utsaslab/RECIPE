@@ -110,6 +110,7 @@ bool leafnode::isLocked(uint64_t version) const {
 
 void leafnode::writeLock() {
     uint64_t version;
+    version = typeVersionLockObsolete.load();
     int needRestart = UNLOCKED;
     upgradeToWriteLockOrRestart(version, needRestart);
 }
@@ -117,7 +118,7 @@ void leafnode::writeLock() {
 void leafnode::writeLockOrRestart(int &needRestart) {
     uint64_t version;
     needRestart = UNLOCKED;
-    version = readLockOrRestart(&needRestart);
+    version = readLockOrRestart(needRestart);
     if (needRestart) return;
 
     upgradeToWriteLockOrRestart(version, needRestart);
@@ -126,7 +127,7 @@ void leafnode::writeLockOrRestart(int &needRestart) {
 bool leafnode::tryLock(int &needRestart) {
     uint64_t version;
     needRestart = UNLOCKED;
-    version = readLockOrRestart(&needRestart);
+    version = readLockOrRestart(needRestart);
     if (needRestart) return false;
 
     upgradeToWriteLockOrRestart(version, needRestart);
@@ -515,7 +516,7 @@ inter_retry:
                 if (next->tryLock(needRestart))
                     p->check_for_recovery(this, p, next, root, depth, lv);
                 else
-                    p->unlock();
+                    p->writeUnlock(false);
             }
             p = next;
             goto inter_retry;
@@ -1041,7 +1042,7 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
 
         permuter cp = this->permutation.value();
         cp.insert_from_back(kx_.i);
-        movnt64(&this->permutation, cp);
+        movnt64((uint64_t *)(&this->permutation), cp.value());
 
         this->writeUnlock(isOverWrite);
         ret = this;
@@ -1149,7 +1150,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
     if (this->permutation.size() > LEAF_THRESHOLD) {
         permuter cp = this->permutation.value();
         cp.remove_to_back(kx_.i);
-        movnt64(&this->permutation, cp);
+        movnt64((uint64_t *)(&this->permutation), cp.value());
         if (lv != NULL) threadInfo.getEpoche().markNodeForDeletion((LV_PTR(this->value(kx_.p))), threadInfo);
         this->writeUnlock(false);
         ret = this;
@@ -1791,7 +1792,7 @@ leaf_retry:
         snapshot_v = l->value(kx_.p);
         if (!IS_LV(snapshot_v)) {
             // If there is additional layer, traverse B+tree in the next layer
-            checkOrRestart(v, needRestart);
+            l->checkOrRestart(v, needRestart);
             if (needRestart)
                 goto leaf_retry;
             else {
@@ -1806,19 +1807,19 @@ leaf_retry:
         snapshot_v = NULL;
     }
 
-    checkOrRestart(v, needRestart);
+    l->checkOrRestart(v, needRestart);
     if (needRestart)
         goto leaf_retry;
     else {
         if (snapshot_v) {
             if (((leafvalue *)(snapshot_v))->key_len == lv->key_len &&
                     memcmp(((leafvalue *)(snapshot_v))->fkey, lv->fkey, lv->key_len) == 0) {
-                snapshot_v = ((leafvalue *)(snapshot_v))->value;
+                snapshot_v = (void *)(((leafvalue *)(snapshot_v))->value);
             } else {
                 snapshot_v = NULL;
             }
         } else {
-            next = l->advance_to_key(key);
+            next = l->advance_to_key(lv->fkey[depth]);
             if (next != l) {
                 l = next;
                 goto leaf_retry;
@@ -1903,7 +1904,7 @@ leaf_retry:
         v = l->readLockOrRestart(needRestart);
         if (needRestart) {
             if (needRestart == LOCKED)
-                goto inter_retry;
+                goto leaf_retry;
             else
                 goto restart;
         }
@@ -2011,7 +2012,7 @@ leaf_retry:
         v = l->readLockOrRestart(needRestart);
         if (needRestart) {
             if (needRestart == LOCKED)
-                goto inter_retry;
+                goto leaf_retry;
             else
                 goto restart;
         }
@@ -2131,7 +2132,7 @@ leaf_retry:
         v = l->readLockOrRestart(needRestart);
         if (needRestart) {
             if (needRestart == LOCKED)
-                goto inter_retry;
+                goto leaf_retry;
             else
                 goto restart;
         }
