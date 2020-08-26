@@ -225,7 +225,6 @@ leafnode *leafnode::advance_to_key(const uint64_t& key)
 {
     const leafnode *n = this;
 
-    leafnode *next;
     if ((next = n->next) && compare_key(key, next->highest) >= 0) {
         n = next;
     }
@@ -346,6 +345,7 @@ void leafnode::make_new_layer(leafnode *l, key_indexed_position &kx_, leafvalue 
 
 void leafnode::check_for_recovery(masstree *t, leafnode *left, leafnode *right, void *root, uint32_t depth, leafvalue *lv)
 {
+    //printf("%s\n", __func__);
     permuter perm = left->permute();
 
     for (int i = perm.size() - 1; i >= 0; i--) {
@@ -1566,19 +1566,6 @@ inter_retry:
         fence();
 
         kx_ = p->key_lower_bound(key);
-        if (kx_.i >= 0) {
-            snapshot_v = p->value(kx_.p);
-            fence();
-            if (p->key(kx_.p) <= key) {
-                if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
-                else {
-                    goto inter_retry;
-                }
-            }
-        } else {
-            p = p->leftmost();
-        }
 
         if (kx_.i >= 0)
             snapshot_v = p->value(kx_.p);
@@ -1919,6 +1906,7 @@ leaf_retry:
                     p = reinterpret_cast<leafnode *> (snapshot_v);
                     leafvalue *smallest = p->smallest_leaf(lv->key_len, lv->value);
                     p->get_range(smallest, num, count, buf, p, depth + 1);
+                    free(smallest);
                 } else if (l->key(perm[i]) == lv->fkey[depth]) {
                     p = reinterpret_cast<leafnode *> (snapshot_v);
                     p->get_range(lv, num, count, buf, p, depth + 1);
@@ -1944,8 +1932,6 @@ leaf_retry:
                 l = reinterpret_cast<leafnode *> (snapshot_n);
         }
     }
-
-    free(lv);
 }
 
 int masstree::scan(char *min, int num, uint64_t *buf, ThreadInfo &threadEpocheInfo)
@@ -2027,6 +2013,7 @@ leaf_retry:
                     p = reinterpret_cast<leafnode *> (snapshot_v);
                     leafvalue *smallest = p->smallest_leaf(lv->key_len, lv->value);
                     p->get_range(smallest, num, count, buf, p, depth + 1);
+                    free(smallest);
                 } else if (l->key(perm[i]) == lv->fkey[depth]) {
                     p = reinterpret_cast<leafnode *> (snapshot_v);
                     p->get_range(lv, num, count, buf, p, depth + 1);
@@ -2095,20 +2082,6 @@ inter_retry:
         fence();
 
         kx_ = p->key_lower_bound(min);
-
-        if (kx_.i >= 0) {
-            snapshot_v = p->value(kx_.p);
-            fence();
-            if (p->key(kx_.p) <= min) {
-                if (snapshot_v == p->value(kx_.p))
-                    p = reinterpret_cast<leafnode *>(snapshot_v);
-                else {
-                    goto inter_retry;
-                }
-            }
-        } else {
-            p = p->leftmost();
-        }
 
         if (kx_.i >= 0)
             snapshot_v = p->value(kx_.p);
