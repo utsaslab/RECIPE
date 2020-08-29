@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <algorithm>
+#include <emmintrin.h>
 
 #include "N.h"
 #include "N4.cpp"
@@ -53,6 +54,13 @@ namespace ART_ROWEX {
         if (back)
             mfence();
     }
+
+    inline void N::movnt64(uint64_t *dest, uint64_t const &src) {
+        mfence();
+        _mm_stream_si64((long long int *)dest, *(long long int *)&src);
+        mfence();
+    }
+
 #ifdef LOCK_INIT
     void lock_initialization () {
         printf("lock table size = %lu\n", lock_initializer.size());
