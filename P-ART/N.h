@@ -159,7 +159,7 @@ namespace ART_ROWEX {
 
         static inline void clflush(char *data, int len, bool front, bool back) __attribute__((always_inline));
 
-        static inline void movnt64(uint64_t *dest, uint64_t const &src) __attribute__((always_inline));
+        static inline void movnt64(uint64_t *dest, uint64_t const &src, bool front, bool back) __attribute__((always_inline));
     };
 
     class N4 : public N {

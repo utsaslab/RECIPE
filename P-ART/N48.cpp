@@ -19,10 +19,19 @@ namespace ART_ROWEX {
             }
         }
 
-        children[compactCount].store(n, flush ? std::memory_order_release : std::memory_order_relaxed);
-        if (flush) clflush((char *)&children[compactCount], sizeof(N *), false, true);
-        childIndex[key].store(compactCount, flush ? std::memory_order_release : std::memory_order_relaxed);
-        if (flush) clflush((char *)&childIndex[key], sizeof(uint8_t), false, true);
+        if (flush) {
+            children[compactCount].store(n, std::memory_order_release);
+            clflush((char *)&children[compactCount], sizeof(N *), false, true);
+            uint64_t *childIndex64 = (uint64_t *)childIndex;
+            uint64_t index64 = childIndex64[key/8];
+            uint8_t *index8 = (uint8_t *)&index64;
+            index8[key%8] = compactCount;
+            movnt64((uint64_t *)&childIndex64[key/8], index64, false, true);
+        } else {
+            children[compactCount].store(n, std::memory_order_relaxed);
+            childIndex[key].store(compactCount, std::memory_order_relaxed);
+        }
+
         compactCount++;
         count++;
         return true;
@@ -41,8 +50,7 @@ namespace ART_ROWEX {
     void N48::change(uint8_t key, N *val) {
         uint8_t index = childIndex[key].load();
         assert(index != emptyMarker);
-        children[index].store(val, std::memory_order_release);
-        clflush((char *)&children[index], sizeof(N *), false, true);
+        movnt64((uint64_t *)&children[index], (uint64_t)val, true, true);
     }
 
     N *N48::getChild(const uint8_t k) const {
@@ -59,10 +67,20 @@ namespace ART_ROWEX {
             return false;
         }
         assert(childIndex[k] != emptyMarker);
-        children[childIndex[k]].store(nullptr, flush ? std::memory_order_release : std::memory_order_relaxed);
-        if (flush) clflush((char *)&children[childIndex[k]], sizeof(N *), false, true);
-        childIndex[k].store(emptyMarker, flush ? std::memory_order_release : std::memory_order_relaxed);
-        if (flush) clflush((char *)&childIndex[k], sizeof(uint8_t), false, true);
+
+        if (flush) {
+            children[childIndex[k]].store(nullptr, std::memory_order_release);
+            clflush((char *)&children[childIndex[k]], sizeof(N *), false, true);
+            uint64_t *childIndex64 = (uint64_t *)childIndex;
+            uint64_t index64 = childIndex64[k/8];
+            uint8_t *index8 = (uint8_t *)&index64;
+            index8[k%8] = emptyMarker;
+            movnt64((uint64_t *)&childIndex64[k/8], index64, false, true);
+        } else {
+            children[childIndex[k]].store(nullptr, std::memory_order_relaxed);
+            childIndex[k].store(emptyMarker, std::memory_order_relaxed);
+        }
+
         count--;
         assert(getChild(k) == nullptr);
         return true;
