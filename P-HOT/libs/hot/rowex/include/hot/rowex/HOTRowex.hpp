@@ -55,15 +55,15 @@ template<typename ValueType, template <typename> typename KeyExtractor> HOTRowex
 }
 
 template<typename ValueType, template <typename> typename KeyExtractor> HOTRowex<ValueType, KeyExtractor>::~HOTRowex() {
-	mRoot.deleteSubtree();
+	(mRoot.pcas_read()).deleteSubtree();
 }
 
-template<typename ValueType, template <typename> typename KeyExtractor> inline idx::contenthelpers::OptionalValue<ValueType> HOTRowex<ValueType, KeyExtractor>::lookup(HOTRowex<ValueType, KeyExtractor>::KeyType const &key) const {
+template<typename ValueType, template <typename> typename KeyExtractor> inline idx::contenthelpers::OptionalValue<ValueType> HOTRowex<ValueType, KeyExtractor>::lookup(HOTRowex<ValueType, KeyExtractor>::KeyType const &key) {
 	MemoryGuard memoryGuard(mMemoryReclamation);
 	auto const & fixedSizeKey = idx::contenthelpers::toFixSizedKey(idx::contenthelpers::toBigEndianByteOrder(key));
 	uint8_t const* byteKey = idx::contenthelpers::interpretAsByteArray(fixedSizeKey);
 
-	HOTRowexChildPointer current =  mRoot;
+	HOTRowexChildPointer current = mRoot.pcas_read();
 	while(!current.isLeaf()) {
 		current = *(current.search(byteKey));
 	}
@@ -71,7 +71,7 @@ template<typename ValueType, template <typename> typename KeyExtractor> inline i
 	return { idx::contenthelpers::contentEquals(extractKey(value), key), value };
 }
 
-template<typename ValueType, template <typename> typename KeyExtractor> inline idx::contenthelpers::OptionalValue<ValueType> HOTRowex<ValueType, KeyExtractor>::scan(HOTRowex<ValueType, KeyExtractor>::KeyType const &key, size_t numberValues) const {
+template<typename ValueType, template <typename> typename KeyExtractor> inline idx::contenthelpers::OptionalValue<ValueType> HOTRowex<ValueType, KeyExtractor>::scan(HOTRowex<ValueType, KeyExtractor>::KeyType const &key, size_t numberValues) {
 	const_iterator iterator = lower_bound(key);
 	for(size_t i = 0u; i < numberValues && iterator != end(); ++i) {
 		++iterator;
@@ -95,7 +95,7 @@ template<typename ValueType, template <typename> typename KeyExtractor> inline b
 	while(!insertionResult.mIsValid) {
 		// This temporary variable is important to prevent race conditions, which can occur
 		// in case the root pointer is directly used and can be dereference to two different values
-		HOTRowexChildPointer currentRoot = mRoot;
+		HOTRowexChildPointer currentRoot = mRoot.pcas_read();
 		if (currentRoot.isAValidNode()) {
 			InsertStackType insertStack{ currentRoot, &mRoot, keyBytes};
 			idx::contenthelpers::OptionalValue<hot::commons::DiscriminativeBit> const &mismatchingBit = insertStack.getMismatchingBit(
@@ -115,17 +115,13 @@ template<typename ValueType, template <typename> typename KeyExtractor> inline b
 
 			if (mismatchingBit.mIsValid) {
 				HOTRowexChildPointer const & newRoot = hot::commons::createTwoEntriesNode<HOTRowexChildPointer, HOTRowexNode>(hot::commons::BiNode<HOTRowexChildPointer>::createFromExistingAndNewEntry(mismatchingBit.mValue, mRoot, valueToInsert))->toChildPointer();
-				insertionResult = { mRoot.compareAndSwap(currentRoot, newRoot) , true};
-                hot::commons::clflush(reinterpret_cast <char *> (&mRoot), sizeof(HOTRowexChildPointer));
-                hot::commons::mfence();
+				insertionResult = { mRoot.persistent_cas(currentRoot, newRoot) , true};
 			} else {
 				insertionResult = {true, false };
 			}
 		} else {
 			HOTRowexChildPointer newValue(idx::contenthelpers::valueToTid(value));
-			insertionResult = { mRoot.compareAndSwap(currentRoot, newValue), true };
-            hot::commons::clflush(reinterpret_cast <char *> (&mRoot), sizeof(HOTRowexChildPointer));
-            hot::commons::mfence();
+			insertionResult = { mRoot.persistent_cas(currentRoot, newValue), true };
 		}
 	}
 	return insertionResult.mValue;
@@ -140,7 +136,7 @@ template<typename ValueType, template <typename> typename KeyExtractor> inline i
 	bool upsertCompleted = false;
 
 	while(!upsertCompleted) {
-		HOTRowexChildPointer currentRoot = mRoot;
+		HOTRowexChildPointer currentRoot = mRoot.pcas_read();
 		upsertResult = {};
 		if (currentRoot.isAValidNode()) {
 			InsertStackType insertStack{currentRoot, &mRoot, keyBytes};
@@ -166,14 +162,14 @@ template<typename ValueType, template <typename> typename KeyExtractor> inline i
 		} else if (currentRoot.isLeaf()) {
 			ValueType existingValue = idx::contenthelpers::tidToValue<ValueType>(currentRoot.getTid());
 			if (idx::contenthelpers::contentEquals(extractKey(existingValue), newKey)) {
-				upsertCompleted = mRoot.compareAndSwap(currentRoot, HOTRowexChildPointer(idx::contenthelpers::valueToTid(newValue)));
+				upsertCompleted = mRoot.persistent_cas(currentRoot, HOTRowexChildPointer(idx::contenthelpers::valueToTid(newValue)));
 				upsertResult = { true, existingValue };
 			} else {
 				insertGuarded(newValue);
 			}
 		} else {
 			HOTRowexChildPointer newRootPointer(idx::contenthelpers::valueToTid(newValue));
-			upsertCompleted = mRoot.compareAndSwap(currentRoot, newRootPointer);
+            upsertCompleted = mRoot.persistent_cas(currentRoot, newRootPointer);
 		}
 
 	}
@@ -233,9 +229,6 @@ inline idx::contenthelpers::OptionalValue<bool> HOTRowex<ValueType, KeyExtractor
 		} //Either hasSpaceAboveForIntermediateNode or requires a new root node
 		else {
 			currentStackEntry->updateChildPointer(hot::commons::createTwoEntriesNode<HOTRowexChildPointer, HOTRowexNode>(currentSplitEntries)->toChildPointer());
-            hot::commons::mfence();
-            hot::commons::clflush(reinterpret_cast <char *> (currentStackEntry->getChildPointerLocation()), sizeof(intptr_t));
-            hot::commons::mfence();
 			//std::cout << "Intermediate HOTRowexNode creation: " << valueToInsert << std::endl;
 		}
 	}
@@ -253,9 +246,6 @@ template<typename ValueType, template <typename> typename KeyExtractor>
 inline void HOTRowex<ValueType, KeyExtractor>::leafNodePushDown(typename HOTRowex<ValueType, KeyExtractor>::InsertStackEntryType & leafEntry,
         hot::commons::InsertInformation const & insertInformation, HOTRowexChildPointer const & valueToInsert) {
 	leafEntry.updateChildPointer(hot::commons::createTwoEntriesNode<HOTRowexChildPointer, HOTRowexNode>(hot::commons::BiNode<HOTRowexChildPointer>::createFromExistingAndNewEntry(insertInformation.mKeyInformation, leafEntry.getChildPointer(), valueToInsert))->toChildPointer());
-    hot::commons::mfence();
-    hot::commons::clflush(reinterpret_cast<char *> (leafEntry.getChildPointerLocation()), sizeof(intptr_t));
-    hot::commons::mfence();
 }
 
 template<typename ValueType, template <typename> typename KeyExtractor>
@@ -266,9 +256,6 @@ inline void HOTRowex<ValueType, KeyExtractor>::normalInsert(typename HOTRowex<Va
 			return currentNode.addEntry(insertInformation, valueToInsert);
 		})
 	);
-    hot::commons::mfence();
-    hot::commons::clflush(reinterpret_cast <char *> (currentNodeStackEntry.getChildPointerLocation()), sizeof(intptr_t));
-    hot::commons::mfence();
 }
 
 template<typename ValueType, template <typename> typename KeyExtractor>
@@ -323,16 +310,12 @@ template<typename ValueType, template <typename> typename KeyExtractor> inline v
 	});
 
 	newNode.getNode()->getPointers()[entryIndex] = splitEntries.mLeft;
+    hot::commons::clflush(reinterpret_cast <char *> (&newNode.getNode()->getPointers()[entryIndex]), sizeof(intptr_t), true, false);
 	currentNodeStackEntry.updateChildPointer(newNode);
-    hot::commons::mfence();
-    hot::commons::clflush(reinterpret_cast <char *> (&newNode.getNode()->getPointers()[entryIndex]), sizeof(intptr_t));
-    hot::commons::mfence();
-    hot::commons::clflush(reinterpret_cast <char *> (currentNodeStackEntry.getChildPointerLocation()), sizeof(intptr_t));
-    hot::commons::mfence();
 }
 
 
-template<typename ValueType, template <typename> typename KeyExtractor> inline typename HOTRowex<ValueType, KeyExtractor>::const_iterator HOTRowex<ValueType, KeyExtractor>::begin() const {
+template<typename ValueType, template <typename> typename KeyExtractor> inline typename HOTRowex<ValueType, KeyExtractor>::const_iterator HOTRowex<ValueType, KeyExtractor>::begin() {
 	return HOTRowexSynchronizedIterator<ValueType, KeyExtractor>::begin(&mRoot, const_cast<EpochBasedMemoryReclamationStrategy*>(mMemoryReclamation));
 }
 
@@ -340,21 +323,21 @@ template<typename ValueType, template <typename> typename KeyExtractor> inline t
 	return HOTRowexSynchronizedIterator<ValueType, KeyExtractor>::end();
 }
 
-template<typename ValueType, template <typename> typename KeyExtractor> inline typename HOTRowex<ValueType, KeyExtractor>::const_iterator HOTRowex<ValueType, KeyExtractor>::find(typename HOTRowex<ValueType, KeyExtractor>::KeyType const & searchKey) const {
+template<typename ValueType, template <typename> typename KeyExtractor> inline typename HOTRowex<ValueType, KeyExtractor>::const_iterator HOTRowex<ValueType, KeyExtractor>::find(typename HOTRowex<ValueType, KeyExtractor>::KeyType const & searchKey) {
 	return HOTRowexSynchronizedIterator<ValueType, KeyExtractor>::find(&mRoot, searchKey, const_cast<EpochBasedMemoryReclamationStrategy*>(mMemoryReclamation));
 }
 
-template<typename ValueType, template <typename> typename KeyExtractor> inline typename HOTRowex<ValueType, KeyExtractor>::const_iterator HOTRowex<ValueType, KeyExtractor>::lower_bound(typename HOTRowex<ValueType, KeyExtractor>::KeyType const & searchKey) const {
+template<typename ValueType, template <typename> typename KeyExtractor> inline typename HOTRowex<ValueType, KeyExtractor>::const_iterator HOTRowex<ValueType, KeyExtractor>::lower_bound(typename HOTRowex<ValueType, KeyExtractor>::KeyType const & searchKey) {
 	return HOTRowexSynchronizedIterator<ValueType, KeyExtractor>::getBounded(&mRoot, searchKey, true, const_cast<EpochBasedMemoryReclamationStrategy*>(mMemoryReclamation));
 }
 
-template<typename ValueType, template <typename> typename KeyExtractor> inline typename HOTRowex<ValueType, KeyExtractor>::const_iterator HOTRowex<ValueType, KeyExtractor>::upper_bound(typename HOTRowex<ValueType, KeyExtractor>::KeyType const & searchKey) const {
+template<typename ValueType, template <typename> typename KeyExtractor> inline typename HOTRowex<ValueType, KeyExtractor>::const_iterator HOTRowex<ValueType, KeyExtractor>::upper_bound(typename HOTRowex<ValueType, KeyExtractor>::KeyType const & searchKey) {
 	return HOTRowexSynchronizedIterator<ValueType, KeyExtractor>::getBounded(&mRoot, searchKey, false, const_cast<EpochBasedMemoryReclamationStrategy*>(mMemoryReclamation));
 }
 
 template<typename ValueType, template <typename> typename KeyExtractor>
 inline HOTRowexChildPointer HOTRowex<ValueType, KeyExtractor>::getNodeAtPath(std::initializer_list<unsigned int> path) {
-	HOTRowexChildPointer current = mRoot;
+	HOTRowexChildPointer current = mRoot.pcas_read();
 	for(unsigned int entryIndex : path) {
 		assert(!current.isLeaf());
 		current = current.getNode()->getPointers()[entryIndex];
@@ -379,15 +362,16 @@ inline void HOTRowex<ValueType, KeyExtractor>::collectStatsForSubtree(
 }
 
 template<typename ValueType, template <typename> typename KeyExtractor>
-std::pair<size_t, std::map<std::string, double>> HOTRowex<ValueType, KeyExtractor>::getStatistics() const {
+std::pair<size_t, std::map<std::string, double>> HOTRowex<ValueType, KeyExtractor>::getStatistics() {
+	HOTRowexChildPointer currentRoot = mRoot.pcas_read();
 	std::map<size_t, size_t> leafNodesPerDepth;
-	getValueDistribution(mRoot, 0, leafNodesPerDepth);
+	getValueDistribution(currentRoot, 0, leafNodesPerDepth);
 
 	std::map<size_t, size_t> leafNodesPerBinaryDepth;
-	getBinaryTrieValueDistribution(mRoot, 0, leafNodesPerBinaryDepth);
+	getBinaryTrieValueDistribution(currentRoot, 0, leafNodesPerBinaryDepth);
 
 	std::map<std::string, double> statistics;
-	statistics["height"] = mRoot.getHeight();
+	statistics["height"] = currentRoot.getHeight();
 	statistics["numberFrees"] = ThreadSpecificEpochBasedReclamationInformation::mNumberFrees;
 
 	size_t overallLeafNodeCount = 0;
@@ -407,7 +391,7 @@ std::pair<size_t, std::map<std::string, double>> HOTRowex<ValueType, KeyExtracto
 	}
 
 	statistics["numberValues"] = overallLeafNodeCount;
-	collectStatsForSubtree(mRoot, statistics);
+	collectStatsForSubtree(currentRoot, statistics);
 
 	size_t totalSize = statistics["total"];
 	statistics.erase("total");

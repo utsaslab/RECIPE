@@ -4,6 +4,7 @@
 #include <hot/commons/DiscriminativeBit.hpp>
 #include <hot/commons/InsertInformation.hpp>
 #include <hot/commons/SearchResultForInsert.hpp>
+#include <hot/commons/Persist.hpp>
 
 #include "HOTRowexChildPointer.hpp"
 
@@ -41,8 +42,7 @@ public:
 
 	void updateChildPointer(HOTRowexChildPointer const & childPointer) {
 		//for synchronized case do not update the pointer location as this location is needed for unlock later on!
-		*mChildPointerLocation = childPointer;
-		//mChildPointer = childPointer;
+        hot::commons::movnt64((uint64_t *)mChildPointerLocation, (uint64_t)childPointer.getPointer(), true, true);
 	}
 
 	inline hot::commons::InsertInformation getInsertInformation(hot::commons::DiscriminativeBit const & mismatchingBit)  const {

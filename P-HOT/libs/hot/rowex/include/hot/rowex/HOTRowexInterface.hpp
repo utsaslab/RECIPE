@@ -59,7 +59,7 @@ template<typename ValueType, template <typename> typename KeyExtractor> struct H
 	 * @param key the key to lookup
 	 * @return the looked up value. The result is valid, if a matching record was found.
 	 */
-	inline idx::contenthelpers::OptionalValue<ValueType> lookup(KeyType const &key) const;
+	inline idx::contenthelpers::OptionalValue<ValueType> lookup(KeyType const &key);
 
 	/**
 	 * Scans a given number of values and returns the value at the end of the scan operation
@@ -68,7 +68,7 @@ template<typename ValueType, template <typename> typename KeyExtractor> struct H
 	 * @param numberValues the number of values to scan in sequential order
 	 * @return the record after scanning n values starting at the given key. If not the given number of values can be traversed the resulting value is invalid.
 	 */
-	inline idx::contenthelpers::OptionalValue<ValueType> scan(KeyType const &key, size_t numberValues) const;
+	inline idx::contenthelpers::OptionalValue<ValueType> scan(KeyType const &key, size_t numberValues);
 
 	/**
 	 * Inserts the given record into the index. The value is inserted according to its keys value.
@@ -119,7 +119,7 @@ public:
 	/**
 	 * @return an iterator to the first value according to the key order.
 	 */
-	inline const_iterator begin() const;
+	inline const_iterator begin();
 
 	/**
 	 * @return an iterator which is positioned after the last element.
@@ -133,7 +133,7 @@ public:
 	 * @param searchKey the key to search a matching entry for
 	 * @return either an iterator pointing to the matching entry or the end iterator
 	 */
-	inline const_iterator find(KeyType const & searchKey) const;
+	inline const_iterator find(KeyType const & searchKey);
 
 	/**
 	 * returns an iterator to the first entry which has a key, which is not smaller than the given search key.
@@ -142,7 +142,7 @@ public:
 	 * @param searchKey the search key to determine the lower bound for
 	 * @return either the first entry which has a key, which is not smaller than the given search key or the end iterator if no entry fulfills the lower bound condition
 	 */
-	inline const_iterator lower_bound(KeyType const & searchKey) const;
+	inline const_iterator lower_bound(KeyType const & searchKey);
 
 	/**
 	 * returns an iterator to the first entry which has a key which is larger than the given search key
@@ -150,7 +150,7 @@ public:
 	 * @param searchKey the search key to determine the upper bound for
 	 * @return either the first entry which has a key larger than the search key or the end iterator if no entry fulfills the uper bound condition
 	 */
-	inline const_iterator upper_bound(KeyType const & searchKey) const;
+	inline const_iterator upper_bound(KeyType const & searchKey);
 
 	/**
 	 * helper function for debuggin purposes only, which for a given path returns the child pointer stored at this location.
@@ -183,7 +183,7 @@ public:
 	 *
 	 * @return the collected statistical values
 	 */
-	std::pair<size_t, std::map<std::string, double>> getStatistics() const;
+	std::pair<size_t, std::map<std::string, double>> getStatistics();
 private:
 	inline void collectStatsForSubtree(HOTRowexChildPointer const & subTreeRoot, std::map<std::string, double> & stats) const;
 
