@@ -48,12 +48,10 @@ namespace ART_ROWEX {
             return false;
         }
 
-        if (flush) {
-            uint64_t nullMarker = 0;
-            movnt64((uint64_t *)&children[k], nullMarker, true, true);
-        } else {
+        if (flush)
+            movnt64((uint64_t *)&children[k], (uint64_t)nullptr, true, true);
+        else
             children[k].store(nullptr, std::memory_order_relaxed);
-        }
 
         count--;
         return true;

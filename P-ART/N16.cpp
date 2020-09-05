@@ -80,12 +80,10 @@ namespace ART_ROWEX {
         auto leafPlace = getChildPos(k);
         assert(leafPlace != nullptr);
 
-        if (flush) {
-            uint64_t nullMarker = 0;
-            movnt64((uint64_t *)leafPlace, nullMarker, true, true);
-        } else {
+        if (flush)
+            movnt64((uint64_t *)leafPlace, (uint64_t)nullptr, true, true);
+        else
             leafPlace->store(nullptr, std::memory_order_relaxed);
-        }
 
         count--;
         assert(getChild(k) == nullptr);

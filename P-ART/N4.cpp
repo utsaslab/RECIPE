@@ -67,10 +67,9 @@ namespace ART_ROWEX {
     }
 
     bool N4::remove(uint8_t k, bool force, bool flush) {
-        uint64_t nullMarker = 0;
         for (uint32_t i = 0; i < compactCount; ++i) {
             if (children[i] != nullptr && keys[i].load() == k) {
-                if (flush) movnt64((uint64_t *)&children[i], nullMarker, true, true);
+                if (flush) movnt64((uint64_t *)&children[i], (uint64_t)nullptr, true, true);
                 else children[i].store(nullptr, std::memory_order_relaxed);
                 count--;
                 return true;
