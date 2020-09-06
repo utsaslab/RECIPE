@@ -211,22 +211,22 @@ For artifact evaluation, we will evaluate again the performance of the index str
 
 ## References
 <a id="1">[1]</a>
-Kumud Bhandari, et al. Makalu: Fast Recoverable Allocation of Non-volatile Memory, OOPSLA'16
+Kumud Bhandari, et al. Makalu: Fast Recoverable Allocation of Non-volatile Memory, OOPSLA'16.
 
 <a id="2">[2]</a>
-Nachshon Cohen, et al. Object-Oriented Recovery for Non-volatile Memory, OOPSLA'18
+Nachshon Cohen, et al. Object-Oriented Recovery for Non-volatile Memory, OOPSLA'18.
 
 <a id="3">[3]</a>
-Tudor David, et al. Log-Free Concurrent Data Structures, ATC'18
+Tudor David, et al. Log-Free Concurrent Data Structures, ATC'18.
 
 <a id="4">[4]</a>
-Wentao Cai, et al. Understanding and optimizing persistent memory allocation, ISMM'20
+Wentao Cai, et al. Understanding and optimizing persistent memory allocation, ISMM'20.
 
 <a id="5">[5]</a>
-PMDK man page, https://pmem.io/pmdk/manpages/linux/master/libpmemobj/pmemobj_first.3.
+Eduardo B., [Code Sample: Find Your Leaked Persistent Memory Objects Using the Persistent Memory Development Kit (PMDK)](https://software.intel.com/content/www/us/en/develop/articles/find-your-leaked-persistent-memory-objects-using-persistent-memory-development-kit-pmdk.html).
 
 <a id="6">[6]</a>
-Tianzheng Wang, et al. Easy Lock-Free Indexing in Non-Volatile Memory, ICDE'18
+Tianzheng Wang, et al. Easy Lock-Free Indexing in Non-Volatile Memory, ICDE'18.
 
 ## License
 
