@@ -39,15 +39,15 @@ template<typename ValueType, template <typename> typename KeyExtractor> class HO
 	HotRowexIteratorBufferState<KeyType> mCurrentBufferState;
 
 public:
-	static inline HOTRowexSynchronizedIterator begin(HOTRowexChildPointer const * rootPointerLocation, EpochBasedMemoryReclamationStrategy * const & memoryReclamationStrategy) {
+	static inline HOTRowexSynchronizedIterator begin(HOTRowexChildPointer * rootPointerLocation, EpochBasedMemoryReclamationStrategy * const & memoryReclamationStrategy) {
 		MemoryGuard guard(memoryReclamationStrategy);
-		HOTRowexChildPointer rootPointer = *rootPointerLocation;
+		HOTRowexChildPointer rootPointer = rootPointerLocation->pcas_read();
 		return rootPointer.isUsed() ? HOTRowexSynchronizedIterator(rootPointerLocation, rootPointer, memoryReclamationStrategy, guard) : END_ITERATOR;
 	}
 
-	static inline HOTRowexSynchronizedIterator find(HOTRowexChildPointer const * rootPointerLocation, KeyType const & searchKey, EpochBasedMemoryReclamationStrategy * const & memoryReclamationStrategy) {
+	static inline HOTRowexSynchronizedIterator find(HOTRowexChildPointer * rootPointerLocation, KeyType const & searchKey, EpochBasedMemoryReclamationStrategy * const & memoryReclamationStrategy) {
 		MemoryGuard guard(memoryReclamationStrategy);
-		HOTRowexChildPointer rootPointer = *rootPointerLocation;
+		HOTRowexChildPointer rootPointer = rootPointerLocation->pcas_read();
 		return rootPointer.isUsed() ? HOTRowexSynchronizedIterator(rootPointerLocation, rootPointer, searchKey, memoryReclamationStrategy, guard) : END_ITERATOR;
 	}
 
@@ -55,9 +55,9 @@ public:
 		return END_ITERATOR;
 	}
 
-	static inline HOTRowexSynchronizedIterator getBounded(HOTRowexChildPointer const * rootPointer, KeyType const & searchKey, bool isLowerBound, EpochBasedMemoryReclamationStrategy * const & memoryReclamationStrategy) {
+	static inline HOTRowexSynchronizedIterator getBounded(HOTRowexChildPointer * rootPointer, KeyType const & searchKey, bool isLowerBound, EpochBasedMemoryReclamationStrategy * const & memoryReclamationStrategy) {
 		MemoryGuard guard(memoryReclamationStrategy);
-		HOTRowexChildPointer const & currentRoot = *rootPointer;
+		HOTRowexChildPointer const & currentRoot = rootPointer->pcas_read();
 
 		return (currentRoot.isLeaf()
 				&& idx::contenthelpers::contentEquals(searchKey, extractKey(idx::contenthelpers::tidToValue<ValueType>(currentRoot.getTid())))

@@ -21,12 +21,16 @@ namespace ART_ROWEX {
 
         uint16_t nextIndex = compactCount++;
         count++;
-        keys[nextIndex].store(key, flush ? std::memory_order_release : std::memory_order_relaxed);
-        children[nextIndex].store(n, flush ? std::memory_order_release : std::memory_order_relaxed);
 
-        // As the size of node4 is lower than cache line size (64bytes),
-        // only one clflush is required to atomically synchronize its updates
-        if (flush) clflush((char *)this, sizeof(N4), true, true);
+        if (flush) {
+            keys[nextIndex].store(key, std::memory_order_release);
+            clflush((char *)this, sizeof(N4), false, true);
+            movnt64((uint64_t *)&children[nextIndex], (uint64_t)n, false, true);
+        } else {
+            keys[nextIndex].store(key, std::memory_order_relaxed);
+            children[nextIndex].store(n, std::memory_order_relaxed);
+        }
+
         return true;
     }
 
@@ -44,8 +48,7 @@ namespace ART_ROWEX {
         for (uint32_t i = 0; i < compactCount; ++i) {
             N *child = children[i].load();
             if (child != nullptr && keys[i].load() == key) {
-                children[i].store(val, std::memory_order_release);
-                clflush((char *)&children[i], sizeof(N *), false, true);
+                movnt64((uint64_t *)&children[i], (uint64_t) val, true, true);
                 return ;
             }
         }
@@ -66,8 +69,8 @@ namespace ART_ROWEX {
     bool N4::remove(uint8_t k, bool force, bool flush) {
         for (uint32_t i = 0; i < compactCount; ++i) {
             if (children[i] != nullptr && keys[i].load() == k) {
-                children[i].store(nullptr, flush? std::memory_order_release : std::memory_order_relaxed);
-                if (flush) clflush((char *)&children[i], sizeof(N *), false, true);
+                if (flush) movnt64((uint64_t *)&children[i], (uint64_t)nullptr, true, true);
+                else children[i].store(nullptr, std::memory_order_relaxed);
                 count--;
                 return true;
             }

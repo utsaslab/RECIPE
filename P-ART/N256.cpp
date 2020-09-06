@@ -18,9 +18,10 @@ namespace ART_ROWEX {
             return false;
         }
 
-        children[key].store(val, flush ? std::memory_order_release : std::memory_order_relaxed);
-        if (flush) clflush((char *)&children[key], sizeof(N *), false, true);
+        if (flush) movnt64((uint64_t *)&children[key], (uint64_t)val, true, true);
+        else children[key].store(val, std::memory_order_relaxed);
         count++;
+
         return true;
     }
 
@@ -35,8 +36,7 @@ namespace ART_ROWEX {
     }
 
     void N256::change(uint8_t key, N *n) {
-        children[key].store(n, std::memory_order_release);
-        clflush((char *)&children[key], sizeof(N *), false, true);
+        movnt64((uint64_t *)&children[key], (uint64_t)n, true, true);
     }
 
     N *N256::getChild(const uint8_t k) const {
@@ -47,8 +47,12 @@ namespace ART_ROWEX {
         if (count <= 37 && !force) {
             return false;
         }
-        children[k].store(nullptr, flush ? std::memory_order_release : std::memory_order_relaxed);
-        if (flush) clflush((char *)&children[k], sizeof(N *), false, true);
+
+        if (flush)
+            movnt64((uint64_t *)&children[k], (uint64_t)nullptr, true, true);
+        else
+            children[k].store(nullptr, std::memory_order_relaxed);
+
         count--;
         return true;
     }

@@ -309,34 +309,18 @@ HOTRowexChildPointer HOTRowexNode<DiscriminativeBitsRepresentation, PartialKeyTy
 		if (newDiscriminativeBitsRepresentation.calculateNumberBitsUsed() <= (sizeof(PartialKeyType) * 8)) {
 			newChild = (new (newNumberEntries) HOTRowexNode<NewDiscriminativeBitsRepresentationType, typename ToPartialKeyType<NewDiscriminativeBitsRepresentationType, PartialKeyType>::Type>(
 				self, newNumberEntries, newDiscriminativeBitsRepresentation, insertInformation, newValue))->toChildPointer();
-            hot::commons::mfence();
             hot::commons::NodeAllocationInformation const & allocationInformation =
             hot::commons::NodeAllocationInformations<HOTRowexNode<NewDiscriminativeBitsRepresentationType, typename ToPartialKeyType<NewDiscriminativeBitsRepresentationType, PartialKeyType>::Type>>::getAllocationInformation(newNumberEntries);
-            hot::commons::clflush(reinterpret_cast<char *> (newChild.getNode()), allocationInformation.mTotalSizeInBytes);
-            hot::commons::mfence();
+            hot::commons::clflush(reinterpret_cast<char *> (newChild.getNode()), allocationInformation.mTotalSizeInBytes, true, true);
         } else {
 			newChild = (new (newNumberEntries) HOTRowexNode<typename ToDiscriminativeBitsRepresentation<NewDiscriminativeBitsRepresentationType,
                     typename NextPartialKeyType<PartialKeyType>::Type>::Type, typename ToPartialKeyType<NewDiscriminativeBitsRepresentationType,typename NextPartialKeyType<PartialKeyType>::Type>::Type> (
 				self, newNumberEntries, newDiscriminativeBitsRepresentation, insertInformation, newValue))->toChildPointer();
-            hot::commons::mfence();
             hot::commons::NodeAllocationInformation const & allocationInformation =
             hot::commons::NodeAllocationInformations<HOTRowexNode<typename ToDiscriminativeBitsRepresentation<NewDiscriminativeBitsRepresentationType, typename NextPartialKeyType<PartialKeyType>::Type>::Type, typename ToPartialKeyType<NewDiscriminativeBitsRepresentationType,typename NextPartialKeyType<PartialKeyType>::Type>::Type>>::getAllocationInformation(newNumberEntries);
-            hot::commons::clflush(reinterpret_cast<char *> (newChild.getNode()), allocationInformation.mTotalSizeInBytes);
-            hot::commons::mfence();
+            hot::commons::clflush(reinterpret_cast<char *> (newChild.getNode()), allocationInformation.mTotalSizeInBytes, true, true);
         }
         return newChild;
-#if 0
-		return (newDiscriminativeBitsRepresentation.calculateNumberBitsUsed() <= (sizeof(PartialKeyType) * 8))
-			? (new (newNumberEntries) HOTRowexNode<NewDiscriminativeBitsRepresentationType, typename ToPartialKeyType<NewDiscriminativeBitsRepresentationType, PartialKeyType>::Type>(
-				self, newNumberEntries, newDiscriminativeBitsRepresentation, insertInformation, newValue
-			  ))->toChildPointer()
-			: (new (newNumberEntries) HOTRowexNode<
-					typename ToDiscriminativeBitsRepresentation<NewDiscriminativeBitsRepresentationType, typename NextPartialKeyType<PartialKeyType>::Type>::Type,
-					typename ToPartialKeyType<NewDiscriminativeBitsRepresentationType,typename NextPartialKeyType<PartialKeyType>::Type>::Type
-				> (
-				self, newNumberEntries, newDiscriminativeBitsRepresentation, insertInformation, newValue
-			))->toChildPointer();
-#endif
 	});
 }
 
@@ -357,14 +341,11 @@ HOTRowexChildPointer HOTRowexNode<DiscriminativeBitsRepresentation, PartialKeyTy
 				HOTRowexChildPointer newChild = (new (numberEntriesInRange) HOTRowexNode<FinalDiscriminativeBitsRepresentationType, decltype(maximumMask)>(
 					self, numberEntriesInRange, finalDiscriminativeBitsRepresentation, relevantBits, firstIndexInRange, numberEntriesInRange
 				))->toChildPointer();
-                hot::commons::mfence();
+
                 hot::commons::NodeAllocationInformation const & allocationInformation =
                 hot::commons::NodeAllocationInformations<HOTRowexNode<FinalDiscriminativeBitsRepresentationType, decltype(maximumMask)>>::getAllocationInformation(numberEntriesInRange);
-                hot::commons::clflush(reinterpret_cast <char *> (newChild.getNode()), allocationInformation.mTotalSizeInBytes);
+                hot::commons::clflush(reinterpret_cast <char *> (newChild.getNode()), allocationInformation.mTotalSizeInBytes, true, true);
                 return newChild;
-//				return (new (numberEntriesInRange) HOTRowexNode<FinalDiscriminativeBitsRepresentationType, decltype(maximumMask)>(
-//					self, numberEntriesInRange, finalDiscriminativeBitsRepresentation, relevantBits, firstIndexInRange, numberEntriesInRange
-//				))->toChildPointer();
 			});
 		});
 	} else {
@@ -392,15 +373,11 @@ HOTRowexChildPointer HOTRowexNode<DiscriminativeBitsRepresentation, PartialKeyTy
 					HOTRowexChildPointer newChild = (new (nextNumberEntries) HOTRowexNode<FinalDiscriminativeBitsRepresentationType, decltype(maximumMask)>(
 						self, nextNumberEntries, finalDiscriminativeBitsRepresentation, relevantBits, firstIndexInRange, numberEntriesInRange, insertInformation, newValue
 					))->toChildPointer();
-                    hot::commons::mfence();
+
                     hot::commons::NodeAllocationInformation const & allocationInformation =
                     hot::commons::NodeAllocationInformations<HOTRowexNode<FinalDiscriminativeBitsRepresentationType, decltype(maximumMask)>>::getAllocationInformation(nextNumberEntries);
-                    hot::commons::clflush(reinterpret_cast <char *> (newChild.getNode()), allocationInformation.mTotalSizeInBytes);
-                    hot::commons::mfence();
+                    hot::commons::clflush(reinterpret_cast <char *> (newChild.getNode()), allocationInformation.mTotalSizeInBytes, true, true);
                     return newChild;
-//					return (new (nextNumberEntries) HOTRowexNode<FinalDiscriminativeBitsRepresentationType, decltype(maximumMask)>(
-//						self, nextNumberEntries, finalDiscriminativeBitsRepresentation, relevantBits, firstIndexInRange, numberEntriesInRange, insertInformation, newValue
-//					))->toChildPointer();
 				});
 			});
 		});

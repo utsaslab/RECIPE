@@ -98,6 +98,11 @@ public:
 	 */
 	inline HOTRowexNodeBase *getNode() const;
 
+    /**
+     * @return the value of the child pointer
+     */
+    inline intptr_t getPointer() const;
+
 	/**
 	 * Extracts the tuple identifier of this child pointer.
 	 * Be aware that this is only defined if this child pointer was initialized as a leaf child pointer.
@@ -179,6 +184,12 @@ public:
 	 * @return  the largest value in the subtree corresponding to this childpointer.
 	 */
 	inline HOTRowexChildPointer getLargestLeafValueInSubtree() const;
+
+    inline HOTRowexChildPointer pcas_read();
+
+    inline void persist(intptr_t value);
+
+    inline bool persistent_cas(HOTRowexChildPointer const & expected, HOTRowexChildPointer const & newValue);
 
 	/**
 	 * for its semantics see std::atomic::compare_exchange_strong

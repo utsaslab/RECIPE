@@ -35,6 +35,7 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <emmintrin.h>
 
 #include "clht_lb_res.h"
 
@@ -168,6 +169,13 @@ static inline void clflush_next_check(char *data, int len, bool fence)
     }
     if (fence)
         mfence();
+}
+
+static inline void movnt64(uint64_t *dest, uint64_t const src, bool front, bool back) {
+    assert(((uint64_t)dest & 7) == 0);
+    if (front) mfence();
+    _mm_stream_si64((long long int *)dest, (long long int) src);
+    if (back) mfence();
 }
 
 /* Create a new bucket. */
@@ -430,8 +438,7 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
                 _mm_sfence();
 #endif
                 clflush((char *)b, sizeof(bucket_t), true);
-                bucket->next = b;
-                clflush((char *)&bucket->next, sizeof(uintptr_t), true);
+                movnt64((uint64_t *)&bucket->next, (uint64_t)b, false, true);
             }
             else
             {
@@ -440,8 +447,8 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
                 /* keep the writes in order */
                 _mm_sfence();
 #endif
-                *empty = key;
-                clflush((char *)empty, sizeof(uintptr_t), true);
+                clflush((char *)empty_v, sizeof(clht_val_t), true);
+                movnt64((uint64_t *)empty, (uint64_t)key, false, true);
             }
 
             LOCK_RLS(lock);
@@ -492,6 +499,7 @@ clht_remove(clht_t* h, clht_addr_t key)
     CLHT_CHECK_STATUS(h);
 
     uint32_t j;
+    uint64_t emptyMarker = 0;
     do
     {
         for (j = 0; j < ENTRIES_PER_BUCKET; j++)
@@ -499,8 +507,7 @@ clht_remove(clht_t* h, clht_addr_t key)
             if (bucket->key[j] == key)
             {
                 clht_val_t val = bucket->val[j];
-                bucket->key[j] = 0;
-                clflush((char *)&bucket->key[j], sizeof(uintptr_t), true);
+                movnt64((uint64_t *)&bucket->key[j], emptyMarker, true, true);
                 LOCK_RLS(lock);
                 return val;
             }

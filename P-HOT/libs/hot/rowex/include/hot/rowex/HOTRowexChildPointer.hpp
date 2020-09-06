@@ -3,6 +3,7 @@
 
 #include <hot/commons/NodeType.hpp>
 #include <hot/commons/NodeParametersMapping.hpp>
+#include <hot/commons/Persist.hpp>
 
 #include "hot/rowex/HOTRowexChildPointerInterface.hpp"
 #include "hot/rowex/HOTRowexNodeInterface.hpp"
@@ -12,6 +13,7 @@ namespace hot { namespace rowex {
 constexpr intptr_t NODE_ALGORITHM_TYPE_EXTRACTION_MASK = 0x7u;
 constexpr intptr_t POINTER_AND_IS_LEAF_VALUE_MASK = 15u;
 constexpr intptr_t POINTER_EXTRACTION_MASK = ~(POINTER_AND_IS_LEAF_VALUE_MASK);
+constexpr intptr_t DirtyFlag = 0b100;
 
 template<hot::commons::NodeType nodeAlgorithmType> inline auto HOTRowexChildPointer::castToNode(HOTRowexNodeBase const * node) {
 	using DiscriminativeBitsRepresentationType = typename hot::commons::NodeTypeToNodeParameters<nodeAlgorithmType>::PartialKeyMappingType ;
@@ -134,6 +136,10 @@ inline HOTRowexNodeBase* HOTRowexChildPointer::getNode() const {
 	return reinterpret_cast<HOTRowexNodeBase *>(nodePointerValue);
 }
 
+inline intptr_t HOTRowexChildPointer::getPointer() const {
+	return mPointer.load(read_memory_order);
+}
+
 inline intptr_t HOTRowexChildPointer::getTid() const {
 	// The the value stored in the pseudo-leaf
 	//normally this is undefined behaviour lookup for intrinsic working only on x86 cpus replace with instruction for arithmetic shift
@@ -197,6 +203,34 @@ inline HOTRowexChildPointer HOTRowexChildPointer::getSmallestLeafValueInSubtree(
 inline HOTRowexChildPointer HOTRowexChildPointer::getLargestLeafValueInSubtree() const {
 	return isLeaf() ? *this : getNode()->getPointers()[getNode()->getNumberEntries() - 1].getLargestLeafValueInSubtree();
 }
+
+// Implementation of PSwCAS (Persistent Single-word CAS)
+// Reference: Tianzheng Wang, Justin Levandoski, and Per-Ake Larson, "Easy Lock-Free Indexing in Non-Volatile Memory", ICDE'18
+inline HOTRowexChildPointer HOTRowexChildPointer::pcas_read() {
+    intptr_t word = mPointer.load(std::memory_order_relaxed);
+    if ((word & DirtyFlag) != 0)
+        persist(word);
+
+    HOTRowexChildPointer ret;
+    ret.mPointer.store(word & ~DirtyFlag, std::memory_order_relaxed);
+    return ret;
+}
+
+inline void HOTRowexChildPointer::persist(intptr_t value) {
+    hot::commons::clflush((char *)this, sizeof(HOTRowexChildPointer), true, true);
+    mPointer.compare_exchange_strong(value, value & ~DirtyFlag);
+}
+
+bool HOTRowexChildPointer::persistent_cas(HOTRowexChildPointer const & expected, HOTRowexChildPointer const & newValue) {
+    intptr_t word = mPointer.load(std::memory_order_relaxed);
+    if ((word & DirtyFlag) != 0)
+        persist(word);
+
+    HOTRowexChildPointer newValue_(newValue);
+    newValue_.mPointer.store(newValue_.mPointer | DirtyFlag, std::memory_order_relaxed);
+    return compareAndSwap(expected, newValue_);
+}
+///////////////////////////////////////////////////////////////
 
 bool HOTRowexChildPointer::compareAndSwap(HOTRowexChildPointer const & expected, HOTRowexChildPointer const & newValue) {
 	intptr_t expectedContainedValue = expected.mPointer.load(std::memory_order_relaxed);

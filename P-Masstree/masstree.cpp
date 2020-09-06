@@ -34,6 +34,7 @@ static inline void clflush(char *data, int len, bool fence)
 }
 
 static inline void movnt64(uint64_t *dest, uint64_t const &src) {
+    assert(((uint64_t)dest & 7) == 0);
     mfence();
     _mm_stream_si64((long long int *)dest, *(long long int *)&src);
     mfence();

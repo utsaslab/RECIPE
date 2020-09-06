@@ -55,10 +55,11 @@ namespace ART_ROWEX {
             mfence();
     }
 
-    inline void N::movnt64(uint64_t *dest, uint64_t const &src) {
-        mfence();
+    inline void N::movnt64(uint64_t *dest, uint64_t const &src, bool front, bool back) {
+        assert(((uint64_t)dest & 7) == 0);
+        if (front) mfence();
         _mm_stream_si64((long long int *)dest, *(long long int *)&src);
-        mfence();
+        if (back) mfence();
     }
 
 #ifdef LOCK_INIT

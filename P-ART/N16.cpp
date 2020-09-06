@@ -12,11 +12,17 @@ namespace ART_ROWEX {
 
         uint16_t nextIndex = compactCount++;
         count++;
-        keys[nextIndex].store(flipSign(key), flush ? std::memory_order_release : std::memory_order_relaxed);
-        // this clflush will failure-atomically flush the cache line including counters and entire key entries
-        if (flush) clflush((char *)this, sizeof(uintptr_t), false, true);
-        children[nextIndex].store(n, flush ? std::memory_order_release : std::memory_order_relaxed);
-        if (flush) clflush((char *)&children[nextIndex], sizeof(N *), false, true);
+
+        if (flush) {
+            keys[nextIndex].store(flipSign(key), std::memory_order_release);
+            // this clflush will failure-atomically flush the cache line including counters and entire key entries
+            clflush((char *)this, sizeof(uintptr_t), false, true);
+            movnt64((uint64_t *)&children[nextIndex], (uint64_t)n, false, true);
+        } else {
+            keys[nextIndex].store(flipSign(key), std::memory_order_relaxed);
+            children[nextIndex].store(n, std::memory_order_relaxed);
+        }
+
         return true;
     }
 
@@ -33,8 +39,7 @@ namespace ART_ROWEX {
     void N16::change(uint8_t key, N *val) {
         auto childPos = getChildPos(key);
         assert(childPos != nullptr);
-        childPos->store(val, std::memory_order_release);
-        clflush((char *)childPos, sizeof(N *), false, true);
+        movnt64((uint64_t *)childPos, (uint64_t)val, true, true);
     }
 
     std::atomic<N *> *N16::getChildPos(const uint8_t k) {
@@ -74,8 +79,12 @@ namespace ART_ROWEX {
         }
         auto leafPlace = getChildPos(k);
         assert(leafPlace != nullptr);
-        leafPlace->store(nullptr, flush ? std::memory_order_release : std::memory_order_relaxed);
-        if (flush) clflush((char *)leafPlace, sizeof(N *), false, true);
+
+        if (flush)
+            movnt64((uint64_t *)leafPlace, (uint64_t)nullptr, true, true);
+        else
+            leafPlace->store(nullptr, std::memory_order_relaxed);
+
         count--;
         assert(getChild(k) == nullptr);
         return true;
