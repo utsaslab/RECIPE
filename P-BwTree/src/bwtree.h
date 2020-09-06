@@ -210,27 +210,8 @@ extern bool print_flag;
                                                         sizeof(T)) \
                                                     ) T{__VA_ARGS__} ))
 
-  // This is the presumed size of cache line
-  static constexpr size_t CACHE_LINE_SIZE = 64;
-
- static uint64_t write_latency = 0;
- static uint64_t CPU_FREQ_MHZ = 2100;
-
-static inline void cpu_pause()
-{
-    __asm__ volatile ("pause" ::: "memory");
-}
-
-static inline unsigned long read_tsc(void)
-{
-    unsigned long var;
-    unsigned int hi, lo;
-
-    asm volatile ("rdtsc" : "=a" (lo), "=d" (hi));
-    var = ((unsigned long long int) hi << 32) | lo;
-
-    return var;
-}
+// This is the presumed size of cache line
+static constexpr size_t CACHE_LINE_SIZE = 64;
 
 static inline void mfence() {
     asm volatile("mfence":::"memory");
@@ -242,7 +223,6 @@ static inline void clflush(char *data, int len, bool front, bool back)
     if (front)
         mfence();
     for(; ptr<data+len; ptr+=CACHE_LINE_SIZE){
-        unsigned long etsc = read_tsc() + (unsigned long)(write_latency*CPU_FREQ_MHZ/1000);
 #ifdef CLFLUSH
         asm volatile("clflush %0" : "+m" (*(volatile char *)ptr));
 #elif CLFLUSH_OPT
@@ -250,12 +230,10 @@ static inline void clflush(char *data, int len, bool front, bool back)
 #elif CLWB
         asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(ptr)));
 #endif
-        while(read_tsc() < etsc) cpu_pause();
     }
     if (back)
         mfence();
 }
-
 
 /*
  * class BwTreeBase - Base class of BwTree that stores some common members
@@ -7775,9 +7753,10 @@ before_switch:
       // if there is none then return nullptr
       const KeyValuePair *item_p = Traverse(&context, &value, &index_pair);
 
-
       // If the key-value pair already exists then return false
       if(item_p != nullptr && item_p != DUMMY_PTR) {
+        clflush((char *)&mapping_table[context.current_snapshot.node_id], 
+                sizeof(mapping_table[context.current_snapshot.node_id]), true, true);
         epoch_manager.LeaveEpoch(epoch_node_p);
 	//std::cout << "Leaving epoch for key " << key << std::endl;
         return false;
@@ -8079,6 +8058,10 @@ before_switch:
     TraverseReadOptimized(&context, &value_list);
     //Traverse(&context, &value_list, &index_pair);
 
+    if (context.current_snapshot.node_id != INVALID_NODE_ID)
+        clflush((char *)&mapping_table[context.current_snapshot.node_id], 
+                sizeof(mapping_table[context.current_snapshot.node_id]), true, true);
+
     epoch_manager.LeaveEpoch(epoch_node_p);
 
     return;
@@ -8099,6 +8082,10 @@ before_switch:
 
     std::vector<ValueType> value_list{};
     TraverseReadOptimized(&context, &value_list);
+
+    if (context.current_snapshot.node_id != INVALID_NODE_ID)
+        clflush((char *)&mapping_table[context.current_snapshot.node_id], 
+                sizeof(mapping_table[context.current_snapshot.node_id]), true, true);
 
     epoch_manager.LeaveEpoch(epoch_node_p);
 
@@ -9227,6 +9214,7 @@ try_join_again:
       // Consolidate the current node. Note that we pass in the leaf node
       // object embedded inside the IteratorContext object
       p_tree_p->CollectAllValuesOnLeaf(&snapshot, ic_p->GetLeafNode());
+      clflush((char *)&mapping_table[snapshot.node_id], sizeof(mapping_table[snapshot.node_id]), true, true);
       
       // Leave epoch
       p_tree_p->epoch_manager.LeaveEpoch(epoch_node_p);
@@ -9643,6 +9631,7 @@ try_join_again:
         // Consolidate the current node and store all key value pairs
         // to the embedded leaf node 
         p_tree_p->CollectAllValuesOnLeaf(snapshot_p, ic_p->GetLeafNode());
+        clflush((char *)&p_tree_p->mapping_table[snapshot_p->node_id], sizeof(p_tree_p->mapping_table[snapshot_p->node_id]), true, true);
 
         // Leave the epoch, since we have already had all information
         p_tree_p->epoch_manager.LeaveEpoch(epoch_node_p);
@@ -9740,6 +9729,7 @@ try_join_again:
         ic_p = IteratorContext::Get(tree_p, node_p);
         assert(ic_p->GetRefCount() == 1UL);
         tree_p->CollectAllValuesOnLeaf(snapshot_p, ic_p->GetLeafNode());
+        clflush((char *)&tree_p->mapping_table[snapshot_p->node_id], sizeof(tree_p->mapping_table[snapshot_p->node_id]), true, true);
         
         // Now we could safely release the reference
         tree_p->epoch_manager.LeaveEpoch(epoch_node_p);
