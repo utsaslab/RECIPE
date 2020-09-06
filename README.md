@@ -33,8 +33,8 @@ please refer to `P-*/README.md` in each index's directory and `ycsb.cpp` as well
 The RECIPE data structures in the master branch use a volatile memory allocator ([libvmmalloc](http://pmem.io/pmdk/manpages/linux/v1.3/libvmmalloc.3.html)) 
 so that RECIPE can be compared in an apples-to-apples manner with prior work like FAST&FAIR and 
 CCEH, which also use volatile allocators (and thereby do not provide crash consistency). Thus, 
-if you use RECIPE data structures from the master branch on PM, the data structures will **not** have 
-crash consistency.
+if you use RECIPE data structures from the master branch on PM, metadata related to memory allocator 
+will **not** have crash consistency.
 
 The current volatile allocator must be replaced with persistent memory allocator to ensure crash 
 consistency of memory allocator and to prevent permanent memory leaks. Especially, we recommend
@@ -44,21 +44,13 @@ runtime (We already described it through our SOSP publication). We are currently
 post-crash garbage collection techniques ([[1]](#1), [[2]](#2), [[3]](#3), [[4]](#4), [[5]](#5)) to 
 apply them for RECIPE data structures.
 
-As a first step, we are working on replacing current volatile allocator with `pmdk` library.
-The `pmdk` [branch](https://github.com/utsaslab/RECIPE/blob/pmdk/P-CLHT/README.md) contains RECIPE data stuctures ported to use PMDK's 
-non-volatile allocators. The data structures in this branch will recover correctly after crashes. 
-CLHT and Masstree have been converted to use the non-volatile alloactor, and we are working on the 
-three other data structures and on solving permanent memory leaks. Please use this branch if you 
-require crash recovery. 
+As a first step, we are working on replacing current volatile allocator with [PMDK](https://pmem.io/pmdk/) library and on
+solving permanent memory leaks using the functions provided by it [[5]](#5). Please check out
+the `pmdk` branch for the updates of this work as well as these [details](pmdk.md).
 
-#### Read Uncommitted & Read Committed (Transactional Isolation Levels)
-Current implementations only ensure the lowest level of isolation (Read Uncommitted) when using them for transactional systems, 
-since they are based on normal CASs or temporal stores coupled with cache line flush instructions. However, it is not fundamental
-limitation of RECIPE conversions. You can easily extend them, following RECIPE conversions, to guarantee the higher 
-level of isolation (Read Committed) by replacing each final commit stores (such as pointer swap) coupled with cache line flushes
-with `non-temporal stores` coupled with memory fence for `lock-based implementations` including P-CLHT, P-HOT, P-ART, and P-Masstree. 
-For `lock-free implementations` such as P-Bwtree, you can replace volatile CASs coupled with cache line flush instructions with 
-alternative software-based atomic-persistent primitives such as either `Link-and-Persist` ([[3]](#3), [paper](https://www.usenix.org/system/files/conference/atc18/atc18-david.pdf), [code](https://github.com/LPD-EPFL/nv-lf-structures)) or `PSwCAS` ([[6]](#6), [paper](https://ieeexplore.ieee.org/abstract/document/8509270), [code](https://github.com/microsoft/pmwcas)). 
+#### Read Committed (Transactional Isolation Levels)
+This issue has been resolved in current implementations after SOSP'19. 
+Please check out issue [#13](https://github.com/utsaslab/RECIPE/issues/13) and pull reqeusts [#11](https://github.com/utsaslab/RECIPE/pull/11), [#12](https://github.com/utsaslab/RECIPE/pull/12) for details.
 
 
 ## Contents
@@ -200,9 +192,6 @@ $ sudo su
 # <b>source ./scripts/unset_vmmalloc.sh</b>
 </pre>
 
-## PMDK Implementation
-The RECIPE indices are currently being ported to PMDK to ensure the recoverability of each data structure. Since RECIPE does not handle memory leaks during crashes, PMDK ensures the user's ability to recover any allocations that were made in a persistent memory pool. Currently, only the CLHT data structure has been ported to use PMDK. For more details regarding the PMDK implementation please check out the `pmdk` branch as well as these [details](pmdk.md). 
-
 ## Artifact Evaluation
 
 For artifact evaluation, we will evaluate again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in [Benchmark details](https://github.com/utsaslab/RECIPE#benchmark-details) section below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
@@ -224,9 +213,6 @@ Wentao Cai, et al. Understanding and optimizing persistent memory allocation, IS
 
 <a id="5">[5]</a>
 Eduardo B., [Code Sample: Find Your Leaked Persistent Memory Objects Using the Persistent Memory Development Kit (PMDK)](https://software.intel.com/content/www/us/en/develop/articles/find-your-leaked-persistent-memory-objects-using-persistent-memory-development-kit-pmdk.html).
-
-<a id="6">[6]</a>
-Tianzheng Wang, et al. Easy Lock-Free Indexing in Non-Volatile Memory, ICDE'18.
 
 ## License
 
