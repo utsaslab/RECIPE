@@ -13,8 +13,8 @@ after each critical volatile store as well as load to prevent the stores persist
 `P-BwTree` shows similar performance to `FAST&FAIR` in all YCSB workloads using random integer keys (**1.13x**, **1.04x**, **0.93x**, **0.92x** 
 and **0.92x** performance in Load and workload A, B, C, E respectively).
 
-**Support**. `P-BwTree` supports Insert, Update, Delete, Point Lookup, and Range
-Scan operations. Each operation works for both integer and string keys.
+**Support**. `P-BwTree` supports Insert, Delete, Point Lookup, and Range Scan operations. Each operation works for both 
+integer and string keys. Please check out the [reference implementation](https://github.com/wangziqi2016/index-microbench/blob/74cafa57d74798f209d8fcbce8c4f317ce066eae/BwTree/bwtree.h#L8650) of an upsert if you need an update operation.
 
 **Use case**. `P-BwTree` can provide the well-balanced performance of insertion, lookup, and range scan operations in workloads using integer keys.
 However, it is not suitable to be applied for the application employing string keys due to the inefficiencies caused by the overhead of string 
