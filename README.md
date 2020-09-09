@@ -19,7 +19,7 @@ Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram.
   address =      "Ontario, Canada",
 }
 ```
-
+---
 ## Integrating RECIPE indexes into your own project
 
 Apart from benchmark code with `ycsb.cpp`, we provide simple example codes (`P-*/example.cpp` for each RECIPE index) 
@@ -27,6 +27,7 @@ to help developers who want to apply RECIPE indexes into their own project to ea
 These example source codes run insert and lookup operations with custom integer keys. For more details of usage for each index, 
 please refer to `P-*/README.md` in each index's directory and `ycsb.cpp` as well.
 
+---
 ## Important Limitation
 
 #### Persistent memory allocator
@@ -52,7 +53,7 @@ the `pmdk` branch for the updates of this work as well as these [details](pmdk.m
 This issue has been resolved in current implementations after SOSP'19. 
 Please check out issue [#13](https://github.com/utsaslab/RECIPE/issues/13) and pull reqeusts [#11](https://github.com/utsaslab/RECIPE/pull/11), [#12](https://github.com/utsaslab/RECIPE/pull/12) for details.
 
-
+---
 ## Contents
 
 1. `P-CLHT/` contains the source code for P-CLHT. It is converted from Cache-Line Hash Table to be persistent. The original source code and paper can be found in [code](https://github.com/LPD-EPFL/CLHT) and [paper](https://dl.acm.org/citation.cfm?id=2694359).
@@ -70,6 +71,7 @@ Please check out issue [#13](https://github.com/utsaslab/RECIPE/issues/13) and p
 4. `P-ART` is suitable for  applications with insertion-dominated workloads and a small number of range queries.
 5. `P-Masstree` provides well-balanced performance for insertion, lookup, and range scan operations for applications using either integer or string keys.
 
+---
 ## Running RECIPE Indexes on Persistent Memory and DRAM
 
 ### Desired system configurations (for DRAM environment)
@@ -192,12 +194,21 @@ $ sudo su
 # <b>source ./scripts/unset_vmmalloc.sh</b>
 </pre>
 
+---
 ## Artifact Evaluation
 
 For artifact evaluation, we will evaluate again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in [Benchmark details](https://github.com/utsaslab/RECIPE#benchmark-details) section below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
 
 **RECIPE** has been awarded three badges: **Artifact Available**, **Artifact Functional**, and **Results Reproduced**.
 
+---
+## Improvements made after the SOSP paper
+
+The following improvements are made to the codebase after the SOSP paper:
+
+- Resolve the problems readers return uncommitted value (Issue [#13](https://github.com/utsaslab/RECIPE/issues/13) and pull reqeusts [#11](https://github.com/utsaslab/RECIPE/pull/11), [#12](https://github.com/utsaslab/RECIPE/pull/12))
+
+---
 ## References
 <a id="1">[1]</a>
 Kumud Bhandari, et al. Makalu: Fast Recoverable Allocation of Non-volatile Memory, OOPSLA'16.
@@ -214,16 +225,19 @@ Wentao Cai, et al. Understanding and optimizing persistent memory allocation, IS
 <a id="5">[5]</a>
 Eduardo B., [Code Sample: Find Your Leaked Persistent Memory Objects Using the Persistent Memory Development Kit (PMDK)](https://software.intel.com/content/www/us/en/develop/articles/find-your-leaked-persistent-memory-objects-using-persistent-memory-development-kit-pmdk.html).
 
+---
 ## License
 
 The licence for most of the P-* family of persistent indexes is Apache License (https://www.apache.org/licenses/LICENSE-2.0). This is consistent with the most of the indexes we build on, with the exception of CLHT and HOT, which uses the MIT and ISC License respectively. Accordingly, P-CLHT is under the MIT license (https://opensource.org/licenses/MIT). P-HOT is under the ISC license (https://opensource.org/licenses/ISC).
 
 Copyright for RECIPE indexes is held by the University of Texas at Austin. Please contact us if you would like to obtain a license to use RECIPE indexes in your commercial product. 
 
+---
 ## Acknowledgements
 
 We thank the National Science Foundation, VMware, Google, and Facebook for partially funding this project. We thank Intel and ETRI IITP/KEIT[2014-3-00035] for providing access to Optane DC Persistent Memory to perform our experiments.
 
+---
 ## Contact
 
 Please contact us at `sklee@cs.utexas.edu` and `vijayc@utexas.edu` with any questions.
