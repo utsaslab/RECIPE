@@ -19,7 +19,6 @@ Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram.
   address =      "Ontario, Canada",
 }
 ```
-
 ## Integrating RECIPE indexes into your own project
 
 Apart from benchmark code with `ycsb.cpp`, we provide simple example codes (`P-*/example.cpp` for each RECIPE index) 
@@ -51,7 +50,6 @@ the `pmdk` branch for the updates of this work as well as these [details](pmdk.m
 #### Read Committed (Transactional Isolation Levels)
 This issue has been resolved in current implementations after SOSP'19. 
 Please check out issue [#13](https://github.com/utsaslab/RECIPE/issues/13) and pull reqeusts [#11](https://github.com/utsaslab/RECIPE/pull/11), [#12](https://github.com/utsaslab/RECIPE/pull/12) for details.
-
 
 ## Contents
 
@@ -197,6 +195,12 @@ $ sudo su
 For artifact evaluation, we will evaluate again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in [Benchmark details](https://github.com/utsaslab/RECIPE#benchmark-details) section below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
 
 **RECIPE** has been awarded three badges: **Artifact Available**, **Artifact Functional**, and **Results Reproduced**.
+
+## Improvements made after the SOSP paper
+
+The following improvements are made to the codebase after the SOSP paper:
+
+- Resolve the problems readers return uncommitted value (Issue [#13](https://github.com/utsaslab/RECIPE/issues/13) and pull reqeusts [#11](https://github.com/utsaslab/RECIPE/pull/11), [#12](https://github.com/utsaslab/RECIPE/pull/12))
 
 ## References
 <a id="1">[1]</a>

@@ -226,8 +226,9 @@ leafnode *leafnode::advance_to_key(const uint64_t& key)
 {
     const leafnode *n = this;
 
-    if ((next = n->next) && compare_key(key, next->highest) >= 0) {
-        n = next;
+    leafnode *snapshot_n;
+    if ((snapshot_n = n->next) && compare_key(key, snapshot_n->highest) >= 0) {
+        n = snapshot_n;
     }
 
     return const_cast<leafnode *> (n);
