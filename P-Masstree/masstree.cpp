@@ -1880,7 +1880,7 @@ leaf_retry:
                 l = next;
                 goto leaf_retry;
             }
-
+#if 0
             printf("should not enter here\n");
             printf("fkey = %s, key = %lu, searched key = %lu, key index = %d\n",
                     (char *)(lv->fkey), lv->fkey[depth], l->key(kx_.p), kx_.p);
@@ -1897,6 +1897,7 @@ leaf_retry:
                     printf("next key = %lu\n", l->next_()->key(cp[i]));
                 }
             }
+#endif
         }
 
         return snapshot_v;
