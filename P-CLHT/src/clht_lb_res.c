@@ -126,7 +126,7 @@ static inline unsigned long read_tsc(void)
 }
 
 static inline void mfence() {
-    asm volatile("mfence":::"memory");
+    asm volatile("sfence":::"memory");
 }
 
 static inline void clflush(char *data, int len, bool fence)

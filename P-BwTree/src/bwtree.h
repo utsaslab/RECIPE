@@ -214,7 +214,7 @@ extern bool print_flag;
 static constexpr size_t CACHE_LINE_SIZE = 64;
 
 static inline void mfence() {
-    asm volatile("mfence":::"memory");
+    asm volatile("sfence":::"memory");
 }
 
 static inline void clflush(char *data, int len, bool front, bool back)

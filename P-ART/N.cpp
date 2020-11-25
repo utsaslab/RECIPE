@@ -31,7 +31,7 @@ namespace ART_ROWEX {
 
     inline void N::mfence()
     {
-        asm volatile("mfence":::"memory");
+        asm volatile("sfence":::"memory");
     }
 
     inline void N::clflush(char *data, int len, bool front, bool back)

@@ -12,7 +12,7 @@ static inline void fence() {
 }
 
 static inline void mfence() {
-    asm volatile("mfence":::"memory");
+    asm volatile("sfence":::"memory");
 }
 
 static inline void clflush(char *data, int len, bool fence)
