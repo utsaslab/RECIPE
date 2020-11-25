@@ -39,7 +39,7 @@ namespace ART_ROWEX {
     void N16::change(uint8_t key, N *val) {
         auto childPos = getChildPos(key);
         assert(childPos != nullptr);
-        movnt64((uint64_t *)childPos, (uint64_t)val, true, true);
+        movnt64((uint64_t *)childPos, (uint64_t)val, false, true);
     }
 
     std::atomic<N *> *N16::getChildPos(const uint8_t k) {
@@ -81,7 +81,7 @@ namespace ART_ROWEX {
         assert(leafPlace != nullptr);
 
         if (flush)
-            movnt64((uint64_t *)leafPlace, (uint64_t)nullptr, true, true);
+            movnt64((uint64_t *)leafPlace, (uint64_t)nullptr, false, true);
         else
             leafPlace->store(nullptr, std::memory_order_relaxed);
 

@@ -2869,7 +2869,7 @@ class BwTree : public BwTreeBase {
    */
   inline void InvalidateNodeID(NodeID node_id) {
     mapping_table[node_id] = nullptr;
-    clflush((char *)&mapping_table[node_id], sizeof(mapping_table[node_id]), true, true);
+    clflush((char *)&mapping_table[node_id], sizeof(mapping_table[node_id]), false, true);
 
     // Next time if we need a node ID we just push back from this
     //free_node_id_list.SingleThreadPush(node_id);
@@ -3217,55 +3217,55 @@ class BwTree : public BwTreeBase {
 
     switch(type) {
       case NodeType::InnerType: {
-        clflush((char *)node_p, sizeof(InnerNode) + sizeof(KeyValuePair) * node_p->GetItemCount(), true, true);
+        clflush((char *)node_p, sizeof(InnerNode) + sizeof(KeyValuePair) * node_p->GetItemCount(), false, true);
         break;
       }
       case NodeType::InnerInsertType: {
-        clflush((char *)node_p, sizeof(InnerInsertNode), true, true);
+        clflush((char *)node_p, sizeof(InnerInsertNode), false, true);
         break;
       }
       case NodeType::InnerDeleteType: {
-        clflush((char *)node_p, sizeof(InnerDeleteNode), true, true);
+        clflush((char *)node_p, sizeof(InnerDeleteNode), false, true);
         break;
       }
       case NodeType::InnerSplitType: {
-        clflush((char *)node_p, sizeof(InnerSplitNode), true, true);
+        clflush((char *)node_p, sizeof(InnerSplitNode), false, true);
         break;
       }
       case NodeType::InnerMergeType: {
-        clflush((char *)node_p, sizeof(InnerMergeNode), true, true);
+        clflush((char *)node_p, sizeof(InnerMergeNode), false, true);
         break;
       }
       case NodeType::InnerAbortType: {
-        clflush((char *)node_p, sizeof(InnerAbortNode), true, true);
+        clflush((char *)node_p, sizeof(InnerAbortNode), false, true);
         break;
       }
       case NodeType::InnerRemoveType: {
-        clflush((char *)node_p, sizeof(InnerRemoveNode), true, true);
+        clflush((char *)node_p, sizeof(InnerRemoveNode), false, true);
         break;
       }
       case NodeType::LeafType: {
-        clflush((char *)node_p, sizeof(LeafNode) + sizeof(KeyValuePair) * node_p->GetItemCount(), true, true);
+        clflush((char *)node_p, sizeof(LeafNode) + sizeof(KeyValuePair) * node_p->GetItemCount(), false, true);
         break;
       }
       case NodeType::LeafInsertType: {
-        clflush((char *)node_p, sizeof(LeafInsertNode), true, true);
+        clflush((char *)node_p, sizeof(LeafInsertNode), false, true);
         break;
       }
       case NodeType::LeafSplitType: {
-        clflush((char *)node_p, sizeof(LeafSplitNode), true, true);
+        clflush((char *)node_p, sizeof(LeafSplitNode), false, true);
         break;
       }
       case NodeType::LeafDeleteType: {
-        clflush((char *)node_p, sizeof(LeafDeleteNode), true, true);
+        clflush((char *)node_p, sizeof(LeafDeleteNode), false, true);
         break;
       }
       case NodeType::LeafRemoveType: {
-        clflush((char *)node_p, sizeof(LeafRemoveNode), true, true);
+        clflush((char *)node_p, sizeof(LeafRemoveNode), false, true);
         break;
       }
       case NodeType::LeafMergeType: {
-        clflush((char *)node_p, sizeof(LeafMergeNode), true, true);
+        clflush((char *)node_p, sizeof(LeafMergeNode), false, true);
         break;
       }
       default: {
@@ -3316,11 +3316,11 @@ remove_abort:
 
     switch(type) {
       case NodeType::InnerType: {
-        clflush((char *)node_p, sizeof(InnerNode) + sizeof(KeyValuePair) * node_p->GetItemCount(), true, true);
+        clflush((char *)node_p, sizeof(InnerNode) + sizeof(KeyValuePair) * node_p->GetItemCount(), false, true);
         break;
       }
       case NodeType::LeafType: {
-        clflush((char *)node_p, sizeof(LeafNode) + sizeof(KeyValuePair) * node_p->GetItemCount(), true, true);
+        clflush((char *)node_p, sizeof(LeafNode) + sizeof(KeyValuePair) * node_p->GetItemCount(), false, true);
         break;
       }
       default: {
@@ -3332,7 +3332,7 @@ remove_abort:
     } // switch type
 
     mapping_table[node_id] = node_p;
-    clflush((char *)&mapping_table[node_id], sizeof(mapping_table[node_id]), true, true);
+    clflush((char *)&mapping_table[node_id], sizeof(mapping_table[node_id]), false, true);
 
     return;
   }
@@ -7756,7 +7756,7 @@ before_switch:
       // If the key-value pair already exists then return false
       if(item_p != nullptr && item_p != DUMMY_PTR) {
         clflush((char *)&mapping_table[context.current_snapshot.node_id], 
-                sizeof(mapping_table[context.current_snapshot.node_id]), true, true);
+                sizeof(mapping_table[context.current_snapshot.node_id]), false, true);
         epoch_manager.LeaveEpoch(epoch_node_p);
 	//std::cout << "Leaving epoch for key " << key << std::endl;
         return false;
@@ -8060,7 +8060,7 @@ before_switch:
 
     if (context.current_snapshot.node_id != INVALID_NODE_ID)
         clflush((char *)&mapping_table[context.current_snapshot.node_id], 
-                sizeof(mapping_table[context.current_snapshot.node_id]), true, true);
+                sizeof(mapping_table[context.current_snapshot.node_id]), false, true);
 
     epoch_manager.LeaveEpoch(epoch_node_p);
 
@@ -8085,7 +8085,7 @@ before_switch:
 
     if (context.current_snapshot.node_id != INVALID_NODE_ID)
         clflush((char *)&mapping_table[context.current_snapshot.node_id], 
-                sizeof(mapping_table[context.current_snapshot.node_id]), true, true);
+                sizeof(mapping_table[context.current_snapshot.node_id]), false, true);
 
     epoch_manager.LeaveEpoch(epoch_node_p);
 
@@ -9214,7 +9214,7 @@ try_join_again:
       // Consolidate the current node. Note that we pass in the leaf node
       // object embedded inside the IteratorContext object
       p_tree_p->CollectAllValuesOnLeaf(&snapshot, ic_p->GetLeafNode());
-      clflush((char *)&mapping_table[snapshot.node_id], sizeof(mapping_table[snapshot.node_id]), true, true);
+      clflush((char *)&mapping_table[snapshot.node_id], sizeof(mapping_table[snapshot.node_id]), false, true);
       
       // Leave epoch
       p_tree_p->epoch_manager.LeaveEpoch(epoch_node_p);
@@ -9631,7 +9631,7 @@ try_join_again:
         // Consolidate the current node and store all key value pairs
         // to the embedded leaf node 
         p_tree_p->CollectAllValuesOnLeaf(snapshot_p, ic_p->GetLeafNode());
-        clflush((char *)&p_tree_p->mapping_table[snapshot_p->node_id], sizeof(p_tree_p->mapping_table[snapshot_p->node_id]), true, true);
+        clflush((char *)&p_tree_p->mapping_table[snapshot_p->node_id], sizeof(p_tree_p->mapping_table[snapshot_p->node_id]), false, true);
 
         // Leave the epoch, since we have already had all information
         p_tree_p->epoch_manager.LeaveEpoch(epoch_node_p);
@@ -9729,7 +9729,7 @@ try_join_again:
         ic_p = IteratorContext::Get(tree_p, node_p);
         assert(ic_p->GetRefCount() == 1UL);
         tree_p->CollectAllValuesOnLeaf(snapshot_p, ic_p->GetLeafNode());
-        clflush((char *)&tree_p->mapping_table[snapshot_p->node_id], sizeof(tree_p->mapping_table[snapshot_p->node_id]), true, true);
+        clflush((char *)&tree_p->mapping_table[snapshot_p->node_id], sizeof(tree_p->mapping_table[snapshot_p->node_id]), false, true);
         
         // Now we could safely release the reference
         tree_p->epoch_manager.LeaveEpoch(epoch_node_p);

@@ -129,10 +129,10 @@ static inline void mfence() {
     asm volatile("sfence":::"memory");
 }
 
-static inline void clflush(char *data, int len, bool fence)
+static inline void clflush(char *data, int len, bool front, bool back)
 {
     volatile char *ptr = (char *)((unsigned long)data &~(CACHE_LINE_SIZE-1));
-    if (fence)
+    if (front)
         mfence();
     for(; ptr<data+len; ptr+=CACHE_LINE_SIZE){
         unsigned long etsc = read_tsc() + (unsigned long)(write_latency*CPU_FREQ_MHZ/1000);
@@ -145,7 +145,7 @@ static inline void clflush(char *data, int len, bool fence)
 #endif
 	    while(read_tsc() < etsc) cpu_pause();
     }
-    if (fence)
+    if (back)
         mfence();
 }
 
@@ -239,9 +239,9 @@ clht_create(uint64_t num_buckets)
     w->version_min = 0;
     w->ht_oldest = w->ht;
 
-    clflush((char *)w->ht->table, num_buckets * sizeof(bucket_t), true);
-    clflush((char *)w->ht, sizeof(clht_hashtable_t), true);
-    clflush((char *)w, sizeof(clht_t), true);
+    clflush((char *)w->ht->table, num_buckets * sizeof(bucket_t), false, true);
+    clflush((char *)w->ht, sizeof(clht_hashtable_t), false, true);
+    clflush((char *)w, sizeof(clht_t), false, true);
 
     return w;
 }
@@ -437,7 +437,7 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
                 /* make sure they are visible */
                 _mm_sfence();
 #endif
-                clflush((char *)b, sizeof(bucket_t), true);
+                clflush((char *)b, sizeof(bucket_t), false, true);
                 movnt64((uint64_t *)&bucket->next, (uint64_t)b, false, true);
             }
             else
@@ -447,7 +447,7 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
                 /* keep the writes in order */
                 _mm_sfence();
 #endif
-                clflush((char *)empty_v, sizeof(clht_val_t), true);
+                clflush((char *)empty_v, sizeof(clht_val_t), false, true);
                 movnt64((uint64_t *)empty, (uint64_t)key, false, true);
             }
 
@@ -721,7 +721,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
     }
 
     mfence();
-    clflush((char *)ht_new, sizeof(clht_hashtable_t), false);
+    clflush((char *)ht_new, sizeof(clht_hashtable_t), false, false);
     clflush_next_check((char *)ht_new->table, num_buckets_new * sizeof(bucket_t), false);
     mfence();
 
@@ -757,7 +757,7 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
 
 	// atomically swap the root pointer
     SWAP_U64((uint64_t*) h, (uint64_t) ht_new);
-    clflush((char *)h, sizeof(uint64_t), true);
+    clflush((char *)h, sizeof(uint64_t), false, true);
 
 #if defined(CRASH_AFTER_SWAP_CLHT)
 	pid_t pid1 = fork();

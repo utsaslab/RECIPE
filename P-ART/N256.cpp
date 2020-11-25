@@ -18,7 +18,7 @@ namespace ART_ROWEX {
             return false;
         }
 
-        if (flush) movnt64((uint64_t *)&children[key], (uint64_t)val, true, true);
+        if (flush) movnt64((uint64_t *)&children[key], (uint64_t)val, false, true);
         else children[key].store(val, std::memory_order_relaxed);
         count++;
 
@@ -36,7 +36,7 @@ namespace ART_ROWEX {
     }
 
     void N256::change(uint8_t key, N *n) {
-        movnt64((uint64_t *)&children[key], (uint64_t)n, true, true);
+        movnt64((uint64_t *)&children[key], (uint64_t)n, false, true);
     }
 
     N *N256::getChild(const uint8_t k) const {
@@ -49,7 +49,7 @@ namespace ART_ROWEX {
         }
 
         if (flush)
-            movnt64((uint64_t *)&children[k], (uint64_t)nullptr, true, true);
+            movnt64((uint64_t *)&children[k], (uint64_t)nullptr, false, true);
         else
             children[k].store(nullptr, std::memory_order_relaxed);
 

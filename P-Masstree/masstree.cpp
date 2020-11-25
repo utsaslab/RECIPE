@@ -15,10 +15,10 @@ static inline void mfence() {
     asm volatile("sfence":::"memory");
 }
 
-static inline void clflush(char *data, int len, bool fence)
+static inline void clflush(char *data, int len, bool front, bool back)
 {
     volatile char *ptr = (char *)((unsigned long)data &~(CACHE_LINE_SIZE-1));
-    if (fence)
+    if (front)
         mfence();
     for(; ptr<data+len; ptr+=CACHE_LINE_SIZE){
 #ifdef CLFLUSH
@@ -29,15 +29,15 @@ static inline void clflush(char *data, int len, bool fence)
         asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(ptr)));
 #endif
     }
-    if (fence)
+    if (back)
         mfence();
 }
 
-static inline void movnt64(uint64_t *dest, uint64_t const &src) {
+static inline void movnt64(uint64_t *dest, uint64_t const &src, bool front, bool back) {
     assert(((uint64_t)dest & 7) == 0);
-    mfence();
+    if (front) mfence();
     _mm_stream_si64((long long int *)dest, *(long long int *)&src);
-    mfence();
+    if (back) mfence();
 }
 
 static inline void prefetch_(const void *ptr)
@@ -59,15 +59,15 @@ void lock_initialization()
 
 masstree::masstree() {
     leafnode *init_root = new leafnode(0);
-    clflush((char *)init_root, sizeof(leafnode), true);
+    clflush((char *)init_root, sizeof(leafnode), false, true);
     root_ = init_root;
-    clflush((char *)&root_, sizeof(void *), true);
+    clflush((char *)&root_, sizeof(void *), false, true);
 }
 
 masstree::masstree (void *new_root) {
-    clflush((char *)new_root, sizeof(leafnode), true);
+    clflush((char *)new_root, sizeof(leafnode), false, true);
     root_ = new_root;
-    clflush((char *)&root_, sizeof(void *), true);
+    clflush((char *)&root_, sizeof(void *), false, true);
 }
 
 ThreadInfo masstree::getThreadInfo() {
@@ -267,7 +267,7 @@ leafvalue *masstree::make_leaf(char *key, size_t key_len, uint64_t value)
         lv->fkey[i] = __builtin_bswap64(lv->fkey[i]);
 
     if (value != 0)
-        clflush((char *) lv, sizeof(leafvalue) + len + sizeof(uint64_t), true);
+        clflush((char *) lv, sizeof(leafvalue) + len + sizeof(uint64_t), false, true);
     return lv;
 }
 
@@ -292,7 +292,7 @@ leafvalue *leafnode::smallest_leaf(size_t key_len, uint64_t value)
         lv->fkey[i] = 0ULL;
 
     if (value != 0)
-        clflush((char *) lv, sizeof(leafvalue) + len, true);
+        clflush((char *) lv, sizeof(leafvalue) + len, false, true);
     return lv;
 }
 
@@ -330,18 +330,18 @@ void leafnode::make_new_layer(leafnode *l, key_indexed_position &kx_, leafvalue 
         leafnode *iter = twig_head;
         mfence();
         for ( ; iter != twig_tail && iter != NULL; iter = reinterpret_cast <leafnode *>(iter->entry[0].value)) {
-            clflush((char *)iter, sizeof(leafnode), false);
+            clflush((char *)iter, sizeof(leafnode), false, false);
         }
-        clflush((char *)twig_tail, sizeof(leafnode), false);
+        clflush((char *)twig_tail, sizeof(leafnode), false, false);
         mfence();
 
         l->entry[kx_.p].value = twig_head;
-        clflush((char *)l->entry_addr(kx_.p) + 8, sizeof(uintptr_t), true);
+        clflush((char *)l->entry_addr(kx_.p) + 8, sizeof(uintptr_t), false, true);
     } else {
-        clflush((char *)nl, sizeof(leafnode), true);
+        clflush((char *)nl, sizeof(leafnode), false, true);
 
         l->entry[kx_.p].value = nl;
-        clflush((char *)l->entry_addr(kx_.p) + 8, sizeof(uintptr_t), true);
+        clflush((char *)l->entry_addr(kx_.p) + 8, sizeof(uintptr_t), false, true);
     }
 }
 
@@ -359,7 +359,7 @@ void leafnode::check_for_recovery(masstree *t, leafnode *left, leafnode *right, 
 
     if (left->permutation.size() != perm.size()) {
         left->permutation = perm.value();
-        clflush((char *)&left->permutation, sizeof(permuter), true);
+        clflush((char *)&left->permutation, sizeof(permuter), false, true);
     }
 
     if (depth > 0) {
@@ -367,9 +367,9 @@ void leafnode::check_for_recovery(masstree *t, leafnode *left, leafnode *right, 
         leafnode *p = correct_layer_root(root, lv, depth, pkx_);
         if (p->value(pkx_.p) == left) {
             leafnode *new_root = new leafnode(left, right->highest, right, left->level() + 1);
-            clflush((char *) new_root, sizeof(leafnode), true);
+            clflush((char *) new_root, sizeof(leafnode), false, true);
             p->entry[pkx_.p].value = new_root;
-            clflush((char *) &p->entry[pkx_.p].value, sizeof(uintptr_t), true);
+            clflush((char *) &p->entry[pkx_.p].value, sizeof(uintptr_t), false, true);
             p->writeUnlock(false);
 
             right->writeUnlock(false);
@@ -381,7 +381,7 @@ void leafnode::check_for_recovery(masstree *t, leafnode *left, leafnode *right, 
     } else {
         if (t->root() == left) {
             leafnode *new_root = new leafnode(left, right->highest, right, left->level() + 1);
-            clflush((char *) new_root, sizeof(leafnode), true);
+            clflush((char *) new_root, sizeof(leafnode), false, true);
             t->setNewRoot(new_root);
 
             right->writeUnlock(false);
@@ -594,7 +594,7 @@ leaf_retry:
         } else if (IS_LV(l->value(kx_.p)) && (LV_PTR(l->value(kx_.p)))->key_len == lv->key_len &&
                 memcmp(lv->fkey, (LV_PTR(l->value(kx_.p)))->fkey, lv->key_len) == 0) {
             (LV_PTR(l->value(kx_.p)))->value = value;
-            clflush((char *)&(LV_PTR(l->value(kx_.p)))->value, sizeof(void *), true);
+            clflush((char *)&(LV_PTR(l->value(kx_.p)))->value, sizeof(void *), false, true);
             l->writeUnlock(false);
         // iii) Allocate additional layers (B+tree's roots) up to
         //      the number of common prefixes (8bytes unit).
@@ -872,9 +872,9 @@ int leafnode::split_into(leafnode *nr, int p, const uint64_t& key, void *value, 
     //leafnode::link_split(this, nr);
     nr->highest = nr->entry[0].key;
     nr->next = this->next;
-    clflush((char *)nr, sizeof(leafnode), true);
+    clflush((char *)nr, sizeof(leafnode), false, true);
     this->next = nr;
-    clflush((char *)(&this->next), sizeof(uintptr_t), true);
+    clflush((char *)(&this->next), sizeof(uintptr_t), false, true);
 
     split_key = nr->highest;
     return p >= mid ? 1 + (mid == LEAF_WIDTH) : 0;
@@ -898,9 +898,9 @@ void leafnode::split_into_inter(leafnode *nr, uint64_t& split_key)
     nr->leftmost_ptr = reinterpret_cast<leafnode *>(this->entry[perml[mid - 1]].value);
     nr->highest = this->entry[perml[mid - 1]].key;
     nr->next = this->next;
-    clflush((char *)nr, sizeof(leafnode), true);
+    clflush((char *)nr, sizeof(leafnode), false, true);
     this->next = nr;
-    clflush((char *)(&this->next), sizeof(uintptr_t), true);
+    clflush((char *)(&this->next), sizeof(uintptr_t), false, true);
 
     split_key = nr->highest;
 }
@@ -915,7 +915,7 @@ void leafnode::assign(int p, const uint64_t& key, void *value)
 void leafnode::assign_value(int p, void *value)
 {
     entry[p].value = value;
-    clflush((char *)&entry[p].value, sizeof(void *), true);
+    clflush((char *)&entry[p].value, sizeof(void *), false, true);
 }
 
 void *leafnode::entry_addr(int p)
@@ -926,7 +926,7 @@ void *leafnode::entry_addr(int p)
 void masstree::setNewRoot(void *new_root)
 {
     this->root_ = new_root;
-    clflush((char *)&this->root_, sizeof(void *), true);
+    clflush((char *)&this->root_, sizeof(void *), false, true);
 }
 
 leafnode *leafnode::correct_layer_root(void *root, leafvalue *lv, uint32_t depth, key_indexed_position &pkx_)
@@ -1053,13 +1053,13 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
             isOverWrite = true;
 
         this->assign(kx_.p, key, value);
-        clflush((char *)(&this->entry[kx_.p]), sizeof(kv), true);
+        clflush((char *)(&this->entry[kx_.p]), sizeof(kv), false, true);
 
         permuter cp = this->permutation.value();
         cp.insert_from_back(kx_.i);
         fence();
         this->permutation = cp.value();
-        clflush((char *)(&this->permutation), sizeof(permuter), true);
+        clflush((char *)(&this->permutation), sizeof(permuter), false, true);
 
         this->writeUnlock(isOverWrite);
         ret = this;
@@ -1081,7 +1081,7 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
         //        reusing the existing split mechanism)
         if (this->next != NULL && this->key(this->permutation[this->permutation.size() - 1]) > this->next->highest) {
             this->next = this->next->next;
-            clflush((char *)&this->next, sizeof(leafnode *), true);
+            clflush((char *)&this->next, sizeof(leafnode *), false, true);
         }
 
         leafnode *new_sibling = new leafnode(this->level_);
@@ -1100,16 +1100,16 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
             perml.exchange(perml.size(), LEAF_WIDTH - 1);
 
         nl->permutation = perml.value();
-        clflush((char *)(&nl->permutation), sizeof(permuter), true);
+        clflush((char *)(&nl->permutation), sizeof(permuter), false, true);
 
         if (depth > 0) {
             key_indexed_position pkx_;
             leafnode *p = correct_layer_root(root, lv, depth, pkx_);
             if (p->value(pkx_.p) == this) {
                 leafnode *new_root = new leafnode(this, split_key, new_sibling, level_ + 1);
-                clflush((char *) new_root, sizeof(leafnode), true);
+                clflush((char *) new_root, sizeof(leafnode), false, true);
                 p->entry[pkx_.p].value = new_root;
-                clflush((char *) &p->entry[pkx_.p].value, sizeof(uintptr_t), true);
+                clflush((char *) &p->entry[pkx_.p].value, sizeof(uintptr_t), false, true);
                 p->writeUnlock(false);
             } else {
                 root = p;
@@ -1118,7 +1118,7 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
         } else {
             if (t->root() == this) {
                 leafnode *new_root = new leafnode(this, split_key, new_sibling, level_ + 1);
-                clflush((char *) new_root, sizeof(leafnode), true);
+                clflush((char *) new_root, sizeof(leafnode), false, true);
                 t->setNewRoot(new_root);
             } else {
                 t->split(NULL, NULL, 0, NULL, split_key, new_sibling, level_ + 1, NULL, false);
@@ -1132,13 +1132,13 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
                 isOverWrite = true;
 
             nl->assign(kx_.p, key, value);
-            clflush((char *)(&nl->entry[kx_.p]), sizeof(kv), true);
+            clflush((char *)(&nl->entry[kx_.p]), sizeof(kv), false, true);
 
             permuter cp = nl->permutation.value();
             cp.insert_from_back(kx_.i);
             fence();
             nl->permutation = cp.value();
-            clflush((char *)(&nl->permutation), sizeof(permuter), true);
+            clflush((char *)(&nl->permutation), sizeof(permuter), false, true);
             ret = nl;
         } else {
             kx_.i = kx_.p = kx_.i - perml.size();
@@ -1147,7 +1147,7 @@ void *leafnode::leaf_insert(masstree *t, void *root, uint32_t depth, leafvalue *
             cp.insert_from_back(kx_.i);
             fence();
             nr->permutation = cp.value();
-            clflush((char *)(&nr->permutation), sizeof(permuter), true);
+            clflush((char *)(&nr->permutation), sizeof(permuter), false, true);
             ret = nr;
         }
 
@@ -1169,7 +1169,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
         cp.remove_to_back(kx_.i);
         fence();
         this->permutation = cp.value();
-        clflush((char *)(&this->permutation), sizeof(permuter), true);
+        clflush((char *)(&this->permutation), sizeof(permuter), false, true);
         if (lv != NULL) threadInfo.getEpoche().markNodeForDeletion((LV_PTR(this->value(kx_.p))), threadInfo);
         this->writeUnlock(false);
         ret = this;
@@ -1188,7 +1188,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
                 cp = cp.make_empty();
                 fence();
                 nr->permutation = cp.value();
-                clflush((char *)(&nr->permutation), sizeof(permuter), true);
+                clflush((char *)(&nr->permutation), sizeof(permuter), false, true);
                 p->writeUnlock(false);
                 nr->writeUnlock(false);
                 return nr;
@@ -1198,7 +1198,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
                 if (merge_state == 16) {
                     p = correct_layer_root(root, lv, depth, pkx_);
                     p->entry[pkx_.p].value = nr;
-                    clflush((char *)&p->entry[pkx_.p].value, sizeof(void *), true);
+                    clflush((char *)&p->entry[pkx_.p].value, sizeof(void *), false, true);
                     p->writeUnlock(false);
                 }
             }
@@ -1208,7 +1208,7 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
                 cp = cp.make_empty();
                 fence();
                 nr->permutation = cp.value();
-                clflush((char *)(&nr->permutation), sizeof(permuter), true);
+                clflush((char *)(&nr->permutation), sizeof(permuter), false, true);
                 nr->writeUnlock(false);
                 return nr;
             } else {
@@ -1223,13 +1223,13 @@ void *leafnode::leaf_delete(masstree *t, void *root, uint32_t depth, leafvalue *
         // next pointer is changed, except for leftmost child
         if (merge_state >= 0 && merge_state < 16) {
             nl->next = nr->next;
-            clflush((char *)(&nl->next), sizeof(leafnode *), true);
+            clflush((char *)(&nl->next), sizeof(leafnode *), false, true);
         }
 
         cp = nr->permutation.value();
         cp = cp.make_empty();
         nr->permutation = cp.value();
-        clflush((char *)(&nr->permutation), sizeof(permuter), true);
+        clflush((char *)(&nr->permutation), sizeof(permuter), false, true);
 
         if (nl != nr) {
             if (merge_state >= 0 && merge_state < 16) {
@@ -1267,13 +1267,13 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
             isOverWrite = true;
 
         this->assign(kx_.p, key, value);
-        clflush((char *)(&this->entry[kx_.p]), sizeof(kv), true);
+        clflush((char *)(&this->entry[kx_.p]), sizeof(kv), false, true);
 
         permuter cp = this->permutation.value();
         cp.insert_from_back(kx_.i);
         fence();
         this->permutation = cp.value();
-        clflush((char *)(&this->permutation), sizeof(permuter), true);
+        clflush((char *)(&this->permutation), sizeof(permuter), false, true);
 
         if (child != NULL) {
             child->next->writeUnlock(false);
@@ -1300,7 +1300,7 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
         //        reusing the existing split mechanism)
         if (this->next != NULL && this->key(this->permutation[this->permutation.size() - 1]) > this->next->highest) {
             this->next = this->next->next;
-            clflush((char *)&this->next, sizeof(leafnode *), true);
+            clflush((char *)&this->next, sizeof(leafnode *), false, true);
         }
 
         leafnode *new_sibling = new leafnode(this->level_);
@@ -1320,7 +1320,7 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
             perml.exchange(perml.size(), LEAF_WIDTH - 1);
 
         nl->permutation = perml.value();
-        clflush((char *)(&nl->permutation), sizeof(permuter), true);
+        clflush((char *)(&nl->permutation), sizeof(permuter), false, true);
 
         if (key < split_key) {
             kx_.p = nl->permutation.back();
@@ -1328,26 +1328,26 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
                 isOverWrite = true;
 
             nl->assign(kx_.p, key, value);
-            clflush((char *)(&nl->entry[kx_.p]), sizeof(kv), true);
+            clflush((char *)(&nl->entry[kx_.p]), sizeof(kv), false, true);
 
             permuter cp = nl->permutation.value();
             cp.insert_from_back(kx_.i);
             fence();
             nl->permutation = cp.value();
-            clflush((char *)(&nl->permutation), sizeof(permuter), true);
+            clflush((char *)(&nl->permutation), sizeof(permuter), false, true);
 
             ret = nl;
         } else {
             kx_ = nr->key_lower_bound_by(key);
             kx_.p = nr->permutation.back();
             nr->assign(kx_.p, key, value);
-            clflush((char *)(&nr->entry[kx_.p]), sizeof(kv), true);
+            clflush((char *)(&nr->entry[kx_.p]), sizeof(kv), false, true);
 
             permuter cp = nr->permutation.value();
             cp.insert_from_back(kx_.i);
             fence();
             nr->permutation = cp.value();
-            clflush((char *)(&nr->permutation), sizeof(permuter), true);
+            clflush((char *)(&nr->permutation), sizeof(permuter), false, true);
 
             ret = nr;
         }
@@ -1363,9 +1363,9 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
             leafnode *p = correct_layer_root(root, lv, depth, pkx_);
             if (p->value(pkx_.p) == this) {
                 leafnode *new_root = new leafnode(this, split_key, new_sibling, level_ + 1);
-                clflush((char *) new_root, sizeof(leafnode), true);
+                clflush((char *) new_root, sizeof(leafnode), false, true);
                 p->entry[pkx_.p].value = new_root;
-                clflush((char *) &p->entry[pkx_.p].value, sizeof(uintptr_t), true);
+                clflush((char *) &p->entry[pkx_.p].value, sizeof(uintptr_t), false, true);
                 p->writeUnlock(false);
 
                 this->next->writeUnlock(false);
@@ -1377,7 +1377,7 @@ void *leafnode::inter_insert(masstree *t, void *root, uint32_t depth, leafvalue 
         } else {
             if (t->root() == this) {
                 leafnode *new_root = new leafnode(this, split_key, new_sibling, level_ + 1);
-                clflush((char *) new_root, sizeof(leafnode), true);
+                clflush((char *) new_root, sizeof(leafnode), false, true);
                 t->setNewRoot(new_root);
 
                 this->next->writeUnlock(false);
@@ -1403,7 +1403,7 @@ int leafnode::inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *l
             cp.remove_to_back(kx_.i);
             fence();
             this->permutation = cp.value();
-            clflush((char *)(&this->permutation), sizeof(permuter), true);
+            clflush((char *)(&this->permutation), sizeof(permuter), false, true);
         }
 
         this->writeUnlock(false);
@@ -1442,7 +1442,7 @@ int leafnode::inter_delete(masstree *t, void *root, uint32_t depth, leafvalue *l
         // Final step for internal node reclamation
         if (merge_state >= 0 && merge_state < 16) {
             nl->next = nr->next;
-            clflush((char *)(&nl->next), sizeof(leafnode *), true);
+            clflush((char *)(&nl->next), sizeof(leafnode *), false, true);
         } else if (merge_state == 16) {
             kx_.i = 16;
         }
