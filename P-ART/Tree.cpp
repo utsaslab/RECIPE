@@ -21,6 +21,7 @@ namespace ART_ROWEX {
 
     Tree::Tree(LoadKeyFunction loadKey) : root(new N256(0, {})), loadKey(loadKey) {
         N::clflush((char *)root, sizeof(N256), false, true);
+        N::clflush((char*)this, sizeof(Tree), false, true);
     }
 
     Tree::~Tree() {
