@@ -133,7 +133,10 @@ CCEH::CCEH(void)
   for (unsigned i = 0; i < dir.capacity; ++i) {
     dir._[i] = new Segment(global_depth);
     dir._[i]->pattern = i;
+    clflush((char *)dir._[i], sizeof(Segment));
+    clflush((char*)&dir._[i], sizeof(Segment*)); 
   }
+  clflush((char*)this, sizeof(CCEH));
 }
 
 CCEH::CCEH(size_t initCap)
@@ -142,7 +145,10 @@ CCEH::CCEH(size_t initCap)
   for (unsigned i = 0; i < dir.capacity; ++i) {
     dir._[i] = new Segment(global_depth);
     dir._[i]->pattern = i;
+    clflush((char *)dir._[i], sizeof(Segment));
+    clflush((char*)&dir._[i], sizeof(Segment*)); 
   }
+  clflush((char*)this, sizeof(CCEH));
 }
 
 CCEH::~CCEH(void)

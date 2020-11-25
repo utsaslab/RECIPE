@@ -31,7 +31,7 @@ namespace ART_ROWEX {
 
     inline void N::mfence()
     {
-        asm volatile("mfence":::"memory");
+        asm volatile("sfence":::"memory");
     }
 
     inline void N::clflush(char *data, int len, bool front, bool back)
@@ -186,7 +186,7 @@ namespace ART_ROWEX {
             return;
         }
 
-        clflush((char *)nBig, sizeof(biggerN), true, true);
+        clflush((char *)nBig, sizeof(biggerN), false, true);
         N::change(parentNode, keyParent, nBig);
         parentNode->writeUnlock();
 
@@ -210,7 +210,7 @@ namespace ART_ROWEX {
             return true;
         }
 
-        clflush((char *)nNew, sizeof(curN), true, true);
+        clflush((char *)nNew, sizeof(curN), false, true);
         N::change(parentNode, keyParent, nNew);
         parentNode->writeUnlock();
 
@@ -334,7 +334,7 @@ namespace ART_ROWEX {
 
         n->remove(key, true, true);
         n->copyTo(nSmall);
-        clflush((char *) nSmall, sizeof(smallerN), true, true);
+        clflush((char *) nSmall, sizeof(smallerN), false, true);
         N::change(parentNode, keyParent, nSmall);
 
         parentNode->writeUnlock();

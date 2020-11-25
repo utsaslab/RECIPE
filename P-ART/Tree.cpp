@@ -20,7 +20,8 @@
 namespace ART_ROWEX {
 
     Tree::Tree(LoadKeyFunction loadKey) : root(new N256(0, {})), loadKey(loadKey) {
-        N::clflush((char *)root, sizeof(N256), true, true);
+        N::clflush((char *)root, sizeof(N256), false, true);
+        N::clflush((char*)this, sizeof(Tree), false, true);
     }
 
     Tree::~Tree() {
@@ -295,7 +296,7 @@ namespace ART_ROWEX {
                     // 2)  add node and (tid, *k) as children
                     newNode->insert(k->fkey[nextLevel], N::setLeaf(k), false);
                     newNode->insert(nonMatchingKey, node, false);
-                    N::clflush((char *)newNode, sizeof(N4), true, true);
+                    N::clflush((char *)newNode, sizeof(N4), false, true);
 
                     // 3) lockVersionOrRestart, update parentNode to point to the new node, unlock
                     parentNode->writeLockOrRestart(needRestart);
@@ -371,7 +372,7 @@ namespace ART_ROWEX {
                 auto n4 = new N4(level + prefixLength, &k->fkey[level], prefixLength);
                 n4->insert(k->fkey[level + prefixLength], N::setLeaf(k), false);
                 n4->insert(key->fkey[level + prefixLength], nextNode, false);
-                N::clflush((char *)n4, sizeof(N4), true, true);
+                N::clflush((char *)n4, sizeof(N4), false, true);
 
                 N::change(node, k->fkey[level - 1], n4);
                 node->writeUnlock();

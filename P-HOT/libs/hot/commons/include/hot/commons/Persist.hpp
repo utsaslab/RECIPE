@@ -5,7 +5,7 @@ namespace hot { namespace commons {
 
 inline void mfence()
 {
-    asm volatile("mfence":::"memory");
+    asm volatile("sfence":::"memory");
 }
 
 inline void clflush(char *data, int len, bool front, bool back)

@@ -50,7 +50,7 @@ namespace ART_ROWEX {
     void N48::change(uint8_t key, N *val) {
         uint8_t index = childIndex[key].load();
         assert(index != emptyMarker);
-        movnt64((uint64_t *)&children[index], (uint64_t)val, true, true);
+        movnt64((uint64_t *)&children[index], (uint64_t)val, false, true);
     }
 
     N *N48::getChild(const uint8_t k) const {
