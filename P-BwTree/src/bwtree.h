@@ -2753,6 +2753,7 @@ class BwTree : public BwTreeBase {
     }
 
     dummy("Call it here to avoid compiler warning\n");
+    clflush((char*)this, sizeof(BwTree), false, true);
     
     return;
   }
