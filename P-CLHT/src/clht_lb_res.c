@@ -507,7 +507,7 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
     while (true);
 }
 
-/* Insert a key-value entry into a hash table. */
+/* Update a value entry associated with given key. */
     int
 clht_update(clht_t* h, clht_addr_t key, clht_val_t val)
 {
@@ -543,6 +543,7 @@ clht_update(clht_t* h, clht_addr_t key, clht_val_t val)
             if (bucket->key[j] == key)
             {
                 movnt64((uint64_t *)&bucket->val[j], val, true, true);
+                LOCK_RLS(lock);
                 return true;
             }
         }
