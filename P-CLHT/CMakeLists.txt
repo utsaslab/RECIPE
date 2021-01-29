@@ -43,4 +43,4 @@ set(P_CLHT_TEST example.cpp src/clht_lb_res.c src/clht_gc.c
 add_executable(example ${P_CLHT_TEST})
 
 target_link_libraries(example ${TbbLib} ${JemallocLib} boost_system
-    boost_thread pthread)
+    boost_thread pthread pmemobj pmem)
