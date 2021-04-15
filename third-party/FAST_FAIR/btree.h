@@ -1085,7 +1085,7 @@ class page{
                             }
                         }
                         else {
-                            for(i=count() - 1; i > 0; --i) {
+                            for(i = current->count() - 1; i > 0; --i) {
                                 if((tmp_key = current->records[i].key.ikey) > min) {
                                     if(tmp_key < max && off < num) {
                                         if((tmp_ptr = current->records[i].ptr) != current->records[i - 1].ptr) {
@@ -1182,7 +1182,7 @@ class page{
                             }
                         }
                         else {
-                            for(i=count() - 1; i > 0; --i) {
+                            for(i = current->count() - 1; i > 0; --i) {
                                 tmp_key = current->records[i].key.skey;
                                 if(memcmp(tmp_key->key, min->key, std::min(tmp_key->key_len, min->key_len)) > 0 && off < num) {
                                     //if(memcmp(tmp_key->key, max->key, std::min(tmp_key->key_len, max->key_len)) < 0 && off < num) {
