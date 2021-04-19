@@ -262,6 +262,8 @@ clht_create(uint64_t num_buckets)
         w->ht_oldest = ht_ptr;
 
         // This should flush everything to persistent memory
+        // Actually, the following flush to the buckets is unnecessary as we are using pmemobj_zalloc
+        // to allocate the hash table. However, we just leave the flush for a reference
         clflush((char *)clht_ptr_from_off(ht_ptr->table_off, true), num_buckets * sizeof(bucket_t), false, true);
         clflush((char *)ht_ptr, sizeof(clht_hashtable_t), false, true);
         clflush((char *)w, sizeof(clht_t), false, true);
@@ -313,6 +315,9 @@ clht_hashtable_create(uint64_t num_buckets)
         fprintf(stderr, "cacheline-unaligned hash table allocation\n");
     }
 
+    // Note that in practice, the initializing procedures from 320 to 325 are unnecessary 
+    // since we are allocating the hash table using pmemobj_zalloc. However, we leave those
+    // for a reference.
     uint64_t i;
     for (i = 0; i < num_buckets; i++) {
         bucket_ptr[i].lock = LOCK_FREE;
