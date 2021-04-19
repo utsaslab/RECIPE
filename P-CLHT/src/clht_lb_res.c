@@ -551,6 +551,7 @@ clht_update(clht_t* h, clht_addr_t key, clht_val_t val)
     } 
     while (unlikely(bucket != NULL));
 
+    LOCK_RLS(lock);
     return false;
 }
 
