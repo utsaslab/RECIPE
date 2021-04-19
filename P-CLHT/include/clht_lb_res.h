@@ -159,6 +159,8 @@ typedef volatile uint8_t clht_lock_t;
 
 typedef struct ALIGNED(CACHE_LINE_SIZE) bucket_s
 {
+  // Although our current implementation does not provide post-crash mechanism,
+  // the locks should be released after a crash (Please refer to the function clht_lock_initialization())
   clht_lock_t lock;
   volatile uint32_t hops;
   clht_addr_t key[ENTRIES_PER_BUCKET];
@@ -181,6 +183,8 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) clht
       struct clht_hashtable_s* ht_oldest;
       struct ht_ts* version_list;
       size_t version_min;
+      // Although our current implementation does not provide post-crash mechanism,
+      // the locks should be released after a crash (Please refer to the function clht_lock_initialization())
       volatile clht_lock_t resize_lock;
       volatile clht_lock_t gc_lock;
       volatile clht_lock_t status_lock;
