@@ -788,8 +788,9 @@ ht_resize_pes(clht_t* h, int is_increase, int by)
 
 	// atomically swap the root pointer
     // Presume the head of "h" contains the pointer (offset) to the hash table
-    SWAP_U64((uint64_t*) h, (uint64_t) pmemobj_oid(ht_new).off);
-    clflush((char *)h, sizeof(uint64_t), false, true);
+    //SWAP_U64((uint64_t*) h, (uint64_t) pmemobj_oid(ht_new).off);
+    //clflush((char *)h, sizeof(uint64_t), false, true);
+    movnt64((uint64_t)&h->ht_off, (uint64_t)pmemobj_oid(ht_new).off, false, true);
 
 	DEBUG_PRINT("Parent reached correctly\n"); 
     ht_old->table_new = ht_new;
