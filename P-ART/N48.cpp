@@ -5,34 +5,34 @@
 namespace ART_ROWEX {
 
     inline bool N48::insert(uint8_t key, N *n, bool flush) {
-        if (compactCount == 48) {
+        if (compactCount.load(std::memory_order_acquire) == 48) {
             return false;
         }
 
         while (true) {
-            if (children[compactCount].load() == nullptr)
+            if (children[compactCount.load(std::memory_order_acquire)].load() == nullptr)
                 break;
             else {
-                compactCount++;
-                if (compactCount == 48)
+                compactCount.fetch_add(1, std::memory_order_acq_rel);
+                if (compactCount.load(std::memory_order_acquire) == 48)
                     return false;
             }
         }
 
         if (flush) {
-            children[compactCount].store(n, std::memory_order_release);
-            clflush((char *)&children[compactCount], sizeof(N *), false, true);
+            children[compactCount.load(std::memory_order_acquire)].store(n, std::memory_order_release);
+            clflush((char *)&children[compactCount.load(std::memory_order_acquire)], sizeof(N *), false, true);
             uint64_t *childIndex64 = (uint64_t *)childIndex;
             uint64_t index64 = childIndex64[key/8];
             uint8_t *index8 = (uint8_t *)&index64;
-            index8[key%8] = compactCount;
+            index8[key%8] = compactCount.load(std::memory_order_acquire);
             movnt64((uint64_t *)&childIndex64[key/8], index64, false, true);
         } else {
-            children[compactCount].store(n, std::memory_order_relaxed);
-            childIndex[key].store(compactCount, std::memory_order_relaxed);
+            children[compactCount.load(std::memory_order_acquire)].store(n, std::memory_order_relaxed);
+            childIndex[key].store(compactCount.load(std::memory_order_acquire), std::memory_order_relaxed);
         }
 
-        compactCount++;
+        compactCount.fetch_add(1, std::memory_order_acq_rel);
         count++;
         return true;
     }
