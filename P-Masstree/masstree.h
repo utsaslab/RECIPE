@@ -329,7 +329,7 @@ class permuter {
 class leafnode {
     private:
         permuter permutation;                                   // 8bytes
-        leafnode *next;                                         // 8bytes
+        std::atomic<leafnode *> next;                           // 8bytes
         std::atomic<uint64_t> typeVersionLockObsolete{0b100};   // 8bytes
         leafnode *leftmost_ptr;                                 // 8bytes
         uint64_t highest;                                       // 8bytes
@@ -414,7 +414,7 @@ class leafnode {
 
         leafnode *leftmost() {return leftmost_ptr;}
 
-        leafnode *next_() {return next;}
+        leafnode *next_() {return next.load(std::memory_order_acquire);}
 
         uint64_t highest_() {return highest;}
 
@@ -430,7 +430,7 @@ class leafnode {
 
         leafvalue *smallest_leaf(size_t key_len, uint64_t value);
 
-        leafnode *search_for_leftsibling(std::atomic<void *>*root, uint64_t key, uint32_t level, leafnode *right);
+        leafnode *search_for_leftsibling(std::atomic<void*> *root1, void **root, uint64_t key, uint32_t level, leafnode *right);
 };
 
 }
