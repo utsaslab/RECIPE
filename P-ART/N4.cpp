@@ -20,7 +20,7 @@ namespace ART_ROWEX {
         }
 
         uint16_t nextIndex = compactCount.fetch_add(1, std::memory_order_acq_rel);
-        count++;
+        count.fetch_add(1, std::memory_order_acq_rel);
 
         if (flush) {
             keys[nextIndex].store(key, std::memory_order_release);
@@ -71,7 +71,7 @@ namespace ART_ROWEX {
             if (children[i] != nullptr && keys[i].load() == k) {
                 if (flush) movnt64((uint64_t *)&children[i], (uint64_t)nullptr, false, true);
                 else children[i].store(nullptr, std::memory_order_relaxed);
-                count--;
+                count.fetch_sub(1, std::memory_order_acq_rel);
                 return true;
             }
         }

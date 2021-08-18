@@ -70,7 +70,7 @@ namespace ART_ROWEX {
         // version 1, unlocked, not obsolete
         std::atomic<Prefix> prefix;
         const uint32_t level;
-        uint16_t count = 0;
+        std::atomic<uint16_t> count {0};
         std::atomic<uint16_t> compactCount{0};
 
 

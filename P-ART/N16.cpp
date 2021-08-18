@@ -11,7 +11,7 @@ namespace ART_ROWEX {
         }
 
         uint16_t nextIndex = compactCount.fetch_add(1, std::memory_order_acq_rel);
-        count++;
+        count.fetch_add(1, std::memory_order_acq_rel);
 
         if (flush) {
             keys[nextIndex].store(flipSign(key), std::memory_order_release);
@@ -74,7 +74,7 @@ namespace ART_ROWEX {
     }
 
     bool N16::remove(uint8_t k, bool force, bool flush) {
-        if (count <= 3 && !force) {
+        if (count.load(std::memory_order_acquire) <= 3 && !force) {
             return false;
         }
         auto leafPlace = getChildPos(k);
@@ -85,7 +85,7 @@ namespace ART_ROWEX {
         else
             leafPlace->store(nullptr, std::memory_order_relaxed);
 
-        count--;
+        count.fetch_sub(1, std::memory_order_acq_rel);
         assert(getChild(k) == nullptr);
         return true;
     }

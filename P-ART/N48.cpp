@@ -33,7 +33,7 @@ namespace ART_ROWEX {
         }
 
         compactCount.fetch_add(1, std::memory_order_acq_rel);
-        count++;
+        count.fetch_add(1, std::memory_order_acq_rel);
         return true;
     }
 
@@ -63,7 +63,7 @@ namespace ART_ROWEX {
     }
 
     bool N48::remove(uint8_t k, bool force, bool flush) {
-        if (count <= 12 && !force) {
+        if (count.load(std::memory_order_acquire) <= 12 && !force) {
             return false;
         }
         assert(childIndex[k] != emptyMarker);
@@ -81,7 +81,7 @@ namespace ART_ROWEX {
             childIndex[k].store(emptyMarker, std::memory_order_relaxed);
         }
 
-        count--;
+        count.fetch_sub(1, std::memory_order_acq_rel);
         assert(getChild(k) == nullptr);
         return true;
     }

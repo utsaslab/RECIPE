@@ -14,13 +14,13 @@ namespace ART_ROWEX {
     }
 
     inline bool N256::insert(uint8_t key, N *val, bool flush) {
-        if (count >= 256) {
+        if (count.load(std::memory_order_acquire) >= 256) {
             return false;
         }
 
         if (flush) movnt64((uint64_t *)&children[key], (uint64_t)val, false, true);
         else children[key].store(val, std::memory_order_relaxed);
-        count++;
+        count.fetch_add(1, std::memory_order_acq_rel);
 
         return true;
     }
@@ -44,7 +44,7 @@ namespace ART_ROWEX {
     }
 
     bool N256::remove(uint8_t k, bool force, bool flush) {
-        if (count <= 37 && !force) {
+        if (count.load(std::memory_order_acquire) <= 37 && !force) {
             return false;
         }
 
@@ -53,7 +53,7 @@ namespace ART_ROWEX {
         else
             children[k].store(nullptr, std::memory_order_relaxed);
 
-        count--;
+        count.fetch_sub(1, std::memory_order_acq_rel);
         return true;
     }
 
