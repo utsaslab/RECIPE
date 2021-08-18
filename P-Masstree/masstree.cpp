@@ -60,13 +60,13 @@ void lock_initialization()
 masstree::masstree() {
     leafnode *init_root = new leafnode(0);
     clflush((char *)init_root, sizeof(leafnode), false, true);
-    root_ = init_root;
+    root_.store(init_root, std::memory_order_release);
     clflush((char *)&root_, sizeof(void *), false, true);
 }
 
 masstree::masstree (void *new_root) {
     clflush((char *)new_root, sizeof(leafnode), false, true);
-    root_ = new_root;
+    root_.store(new_root, std::memory_order_release);
     clflush((char *)&root_, sizeof(void *), false, true);
 }
 
@@ -403,7 +403,7 @@ void masstree::put(uint64_t key, void *value, ThreadInfo &threadEpocheInfo)
     uint64_t v;
 
 from_root:
-    p = reinterpret_cast<leafnode *> (this->root_);
+    p = reinterpret_cast<leafnode *> (this->root_.load(std::memory_order_acquire));
     while (p->level() != 0) {
 inter_retry:
         next = p->advance_to_key(key);
@@ -503,7 +503,7 @@ void masstree::put(char *key, uint64_t value, ThreadInfo &threadEpocheInfo)
     uint64_t v;
 
 restart:
-    root = this->root_;
+    root = this->root_.load(std::memory_order_acquire);
     depth = 0;
     p = reinterpret_cast<leafnode *> (root);
 
@@ -623,7 +623,7 @@ void masstree::del(uint64_t key, ThreadInfo &threadEpocheInfo)
     uint64_t v;
 
 restart:
-    root = this->root_;
+    root = this->root_.load(std::memory_order_acquire);
     leafnode *p = reinterpret_cast<leafnode *> (root);
     while (p->level() != 0) {
 inter_retry:
@@ -726,7 +726,7 @@ void masstree::del(char *key, ThreadInfo &threadEpocheInfo)
 
 restart:
     depth = 0;
-    root = this->root_;
+    root = this->root_.load(std::memory_order_acquire);
     leafnode *p = reinterpret_cast<leafnode *> (root);
 from_root:
     while (p->level() != 0) {
@@ -925,7 +925,7 @@ void *leafnode::entry_addr(int p)
 
 void masstree::setNewRoot(void *new_root)
 {
-    this->root_ = new_root;
+    this->root_.store(new_root, std::memory_order_release);
     clflush((char *)&this->root_, sizeof(void *), false, true);
 }
 
@@ -970,7 +970,7 @@ leaf_retry:
     return p;
 }
 
-leafnode *leafnode::search_for_leftsibling(void **root, uint64_t key, uint32_t level, leafnode *right)
+leafnode *leafnode::search_for_leftsibling(std::atomic<void *>*root, uint64_t key, uint32_t level, leafnode *right)
 {
     leafnode *p = NULL;
     key_indexed_position kx_;
@@ -981,7 +981,7 @@ leafnode *leafnode::search_for_leftsibling(void **root, uint64_t key, uint32_t l
     uint64_t v;
 
 from_root:
-    p = reinterpret_cast<leafnode *> (*root);
+    p = reinterpret_cast<leafnode *> (root->load(std::memory_order_acquire));
     while (p->level() > level) {
 inter_retry:
         next = p->advance_to_key(key);
@@ -1485,9 +1485,9 @@ void masstree::split(void *left, void *root, uint32_t depth, leafvalue *lv,
         p = reinterpret_cast<leafnode *> (left);
         reinterpret_cast<leafnode *> (root)->writeUnlock(false);
     } else {
-        if (level > reinterpret_cast<leafnode *>(root_)->level())
+        if (level > reinterpret_cast<leafnode *>(root_.load(std::memory_order_acquire))->level())
             return ;
-        p = reinterpret_cast<leafnode *> (root_);
+        p = reinterpret_cast<leafnode *> (root_.load(std::memory_order_acquire));
     }
 
 from_root:
@@ -1507,7 +1507,7 @@ inter_retry:
                 if (depth > 0)
                     p = reinterpret_cast<leafnode *> (left);
                 else
-                    p = reinterpret_cast<leafnode *> (root_);
+                    p = reinterpret_cast<leafnode *> (root_.load(std::memory_order_acquire));
                 goto from_root;
             }
         }
@@ -1544,7 +1544,7 @@ leaf_retry:
             if (depth > 0)
                 p = reinterpret_cast<leafnode *> (left);
             else
-                p = reinterpret_cast<leafnode *> (root_);
+                p = reinterpret_cast<leafnode *> (root_.load(std::memory_order_acquire));
             goto from_root;
         }
     }
@@ -1591,7 +1591,7 @@ int masstree::merge(void *left, void *root, uint32_t depth, leafvalue *lv, uint6
     } else {
         //if (level > reinterpret_cast<leafnode *>(this->root_)->level())
         //    return ;
-        p = reinterpret_cast<leafnode *> (this->root_);
+        p = reinterpret_cast<leafnode *> (this->root_.load(std::memory_order_acquire));
     }
 
 from_root:
@@ -1611,7 +1611,7 @@ inter_retry:
                 if (depth > 0)
                     p = reinterpret_cast<leafnode *> (left);
                 else
-                    p = reinterpret_cast<leafnode *> (this->root_);
+                    p = reinterpret_cast<leafnode *> (this->root_.load(std::memory_order_acquire));
                 goto from_root;
             }
         }
@@ -1648,7 +1648,7 @@ leaf_retry:
             if (depth > 0)
                 p = reinterpret_cast<leafnode *> (left);
             else
-                p = reinterpret_cast<leafnode *> (this->root_);
+                p = reinterpret_cast<leafnode *> (this->root_.load(std::memory_order_acquire));
             goto from_root;
         }
     }
@@ -1680,7 +1680,7 @@ void *masstree::get(uint64_t key, ThreadInfo &threadEpocheInfo)
     uint64_t v;
 
 restart:
-    root = this->root_;
+    root = this->root_.load(std::memory_order_acquire);
     leafnode *p = reinterpret_cast<leafnode *> (root);
     while (p->level() != 0) {
 inter_retry:
@@ -1788,7 +1788,7 @@ void *masstree::get(char *key, ThreadInfo &threadEpocheInfo)
 
 restart:
     depth = 0;
-    root = this->root_;
+    root = this->root_.load(std::memory_order_acquire);
     leafnode *p = reinterpret_cast<leafnode *> (root);
 from_root:
     while (p->level() != 0) {
@@ -2023,7 +2023,7 @@ int masstree::scan(char *min, int num, uint64_t *buf, ThreadInfo &threadEpocheIn
 restart:
     depth = 0;
     count = 0;
-    root = this->root_;
+    root = this->root_.load(std::memory_order_acquire);
     leafnode *p = reinterpret_cast<leafnode *> (root);
     while (p->level() != 0) {
 inter_retry:
@@ -2130,7 +2130,7 @@ int masstree::scan(uint64_t min, int num, uint64_t *buf, ThreadInfo &threadEpoch
 
 restart:
     count = 0;
-    root = this->root_;
+    root = this->root_.load(std::memory_order_acquire);
     leafnode *p = reinterpret_cast<leafnode *> (root);
     while (p->level() != 0) {
 inter_retry:

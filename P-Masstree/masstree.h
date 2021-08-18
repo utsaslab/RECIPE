@@ -62,7 +62,7 @@ typedef struct key_indexed_position {
 
 class masstree {
     private:
-        void *root_;
+        std::atomic<void *> root_;
 
         MASS::Epoche epoche{256};
     public:
@@ -75,9 +75,9 @@ class masstree {
 
         MASS::ThreadInfo getThreadInfo();
 
-        void *root() {return root_;}
+        void *root() {return root_.load(std::memory_order_acquire);}
 
-        void **root_dp() {return &root_;}
+        std::atomic<void *>*root_dp() {return &root_;}
 
         void setNewRoot(void *new_root);
 
@@ -430,7 +430,7 @@ class leafnode {
 
         leafvalue *smallest_leaf(size_t key_len, uint64_t value);
 
-        leafnode *search_for_leftsibling(void **root, uint64_t key, uint32_t level, leafnode *right);
+        leafnode *search_for_leftsibling(std::atomic<void *>*root, uint64_t key, uint32_t level, leafnode *right);
 };
 
 }
