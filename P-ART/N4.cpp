@@ -6,7 +6,7 @@ namespace ART_ROWEX {
 
 
     void N4::deleteChildren() {
-        for (uint32_t i = 0; i < compactCount; ++i) {
+        for (uint32_t i = 0; i < compactCount.load(std::memory_order_acquire); ++i) {
             if (children[i].load() != nullptr) {
                 N::deleteChildren(children[i]);
                 N::deleteNode(children[i]);
@@ -15,12 +15,12 @@ namespace ART_ROWEX {
     }
 
     inline bool N4::insert(uint8_t key, N *n, bool flush) {
-        if (compactCount == 4) {
+        if (compactCount.load(std::memory_order_acquire) == 4) {
             return false;
         }
 
-        uint16_t nextIndex = compactCount++;
-        count++;
+        uint16_t nextIndex = compactCount.fetch_add(1, std::memory_order_acq_rel);
+        count.fetch_add(1, std::memory_order_acq_rel);
 
         if (flush) {
             keys[nextIndex].store(key, std::memory_order_release);
@@ -36,7 +36,7 @@ namespace ART_ROWEX {
 
     template<class NODE>
     void N4::copyTo(NODE *n) const {
-        for (uint32_t i = 0; i < compactCount; ++i) {
+        for (uint32_t i = 0; i < compactCount.load(std::memory_order_acquire); ++i) {
             N *child = children[i].load();
             if (child != nullptr) {
                 n->insert(keys[i].load(), child, false);
@@ -45,7 +45,7 @@ namespace ART_ROWEX {
     }
 
     void N4::change(uint8_t key, N *val) {
-        for (uint32_t i = 0; i < compactCount; ++i) {
+        for (uint32_t i = 0; i < compactCount.load(std::memory_order_acquire); ++i) {
             N *child = children[i].load();
             if (child != nullptr && keys[i].load() == key) {
                 movnt64((uint64_t *)&children[i], (uint64_t) val, false, true);
@@ -67,11 +67,11 @@ namespace ART_ROWEX {
     }
 
     bool N4::remove(uint8_t k, bool force, bool flush) {
-        for (uint32_t i = 0; i < compactCount; ++i) {
+        for (uint32_t i = 0; i < compactCount.load(std::memory_order_acquire); ++i) {
             if (children[i] != nullptr && keys[i].load() == k) {
                 if (flush) movnt64((uint64_t *)&children[i], (uint64_t)nullptr, false, true);
                 else children[i].store(nullptr, std::memory_order_relaxed);
-                count--;
+                count.fetch_sub(1, std::memory_order_acq_rel);
                 return true;
             }
         }
@@ -94,7 +94,7 @@ namespace ART_ROWEX {
     }
 
     std::tuple<N *, uint8_t> N4::getSecondChild(const uint8_t key) const {
-        for (uint32_t i = 0; i < compactCount; ++i) {
+        for (uint32_t i = 0; i < compactCount.load(std::memory_order_acquire); ++i) {
             N *child = children[i].load();
             if (child != nullptr) {
                 uint8_t k = keys[i].load();
@@ -126,7 +126,7 @@ namespace ART_ROWEX {
 
     uint32_t N4::getCount() const {
         uint32_t cnt = 0;
-        for (uint32_t i = 0; i < compactCount && cnt < 3; i++) {
+        for (uint32_t i = 0; i < compactCount.load(std::memory_order_acquire) && cnt < 3; i++) {
             N *child = children[i].load();
             if (child != nullptr)
                 cnt++;

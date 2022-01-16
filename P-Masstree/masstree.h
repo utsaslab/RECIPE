@@ -62,7 +62,7 @@ typedef struct key_indexed_position {
 
 class masstree {
     private:
-        void *root_;
+        std::atomic<void *> root_;
 
         MASS::Epoche epoche{256};
     public:
@@ -75,9 +75,9 @@ class masstree {
 
         MASS::ThreadInfo getThreadInfo();
 
-        void *root() {return root_;}
+        void *root() {return root_.load(std::memory_order_acquire);}
 
-        void **root_dp() {return &root_;}
+        std::atomic<void *>*root_dp() {return &root_;}
 
         void setNewRoot(void *new_root);
 
@@ -106,8 +106,7 @@ class masstree {
 
 class permuter {
     public:
-        permuter() {
-            x_ = 0ULL;
+        permuter(): x_(0ULL) {
         }
 
         permuter(uint64_t x) : x_(x) {
@@ -134,13 +133,13 @@ class permuter {
 
         /** @brief Return the permuter's size. */
         int size() const {
-            return x_ & LEAF_WIDTH;
+            return x_.load(std::memory_order_acquire) & LEAF_WIDTH;
         }
 
         /** @brief Return the permuter's element @a i.
           @pre 0 <= i < width */
         int operator[](int i) const {
-            return (x_ >> ((i << 2) + 4)) & LEAF_WIDTH;
+            return (x_.load(std::memory_order_acquire) >> ((i << 2) + 4)) & LEAF_WIDTH;
         }
 
         int back() const {
@@ -148,15 +147,15 @@ class permuter {
         }
 
         uint64_t value() const {
-            return x_;
+            return x_.load(std::memory_order_acquire);
         }
 
         uint64_t value_from(int i) const {
-            return x_ >> ((i + 1) << 2);
+            return x_.load(std::memory_order_acquire) >> ((i + 1) << 2);
         }
 
         void set_size(int n) {
-            x_ = (x_ & ~(uint64_t)LEAF_WIDTH) | n;
+            x_.store( (x_.load(std::memory_order_acquire) & ~(uint64_t)LEAF_WIDTH) | n, std::memory_order_release);
         }
 
         /** @brief Allocate a new element and insert it at position @a i.
@@ -180,11 +179,12 @@ class permuter {
         int insert_from_back(int i) {
             int value = back();
             // increment size, leave lower slots unchanged
-            x_ = ((x_ + 1) & (((uint64_t) 16 << (i << 2)) - 1))
+            x_.store( ((x_.load(std::memory_order_acquire) + 1) & (((uint64_t) 16 << (i << 2)) - 1))
                 // insert slot
                 | ((uint64_t) value << ((i << 2) + 4))
                 // shift up unchanged higher entries & empty slots
-                | ((x_ << 4) & ~(((uint64_t) 256 << (i << 2)) - 1));
+                | ((x_.load(std::memory_order_acquire) << 4) & ~(((uint64_t) 256 << (i << 2)) - 1)),
+                std::memory_order_release);
             return value;
         }
 
@@ -197,13 +197,14 @@ class permuter {
             int value = (*this)[si];
             uint64_t mask = ((uint64_t) 256 << (si << 2)) - 1;
             // increment size, leave lower slots unchanged
-            x_ = ((x_ + 1) & (((uint64_t) 16 << (di << 2)) - 1))
+            x_.store( ((x_.load(std::memory_order_acquire) + 1) & (((uint64_t) 16 << (di << 2)) - 1))
                 // insert slot
                 | ((uint64_t) value << ((di << 2) + 4))
                 // shift up unchanged higher entries & empty slots
-                | ((x_ << 4) & mask & ~(((uint64_t) 256 << (di << 2)) - 1))
+                | ((x_.load(std::memory_order_acquire) << 4) & mask & ~(((uint64_t) 256 << (di << 2)) - 1))
                 // leave uppermost slots alone
-                | (x_ & ~mask);
+                | (x_.load(std::memory_order_acquire) & ~mask),
+                std::memory_order_release);
         }
         /** @brief Remove the element at position @a i.
           @pre 0 <= @a i < @a size()
@@ -223,18 +224,19 @@ class permuter {
           <li>q[q.size()] == p[i]</li>
           </ul> */
         void remove(int i) {
-            if (int(x_ & 15) == i + 1)
-                --x_;
+            if (int(x_.load(std::memory_order_acquire) & 15) == i + 1)
+                x_.fetch_sub(1, std::memory_order_acq_rel);
             else {
-                int rot_amount = ((x_ & 15) - i - 1) << 2;
+                int rot_amount = ((x_.load(std::memory_order_acquire) & 15) - i - 1) << 2;
                 uint64_t rot_mask =
                     (((uint64_t) 16 << rot_amount) - 1) << ((i + 1) << 2);
                 // decrement size, leave lower slots unchanged
-                x_ = ((x_ - 1) & ~rot_mask)
+                x_.store( ((x_.load(std::memory_order_acquire) - 1) & ~rot_mask)
                     // shift higher entries down
-                    | (((x_ & rot_mask) >> 4) & rot_mask)
+                    | (((x_.load(std::memory_order_acquire) & rot_mask) >> 4) & rot_mask)
                     // shift value up
-                    | (((x_ & rot_mask) << rot_amount) & rot_mask);
+                    | (((x_.load(std::memory_order_acquire) & rot_mask) << rot_amount) & rot_mask),
+                    std::memory_order_release);
             }
         }
         /** @brief Remove the element at position @a i to the back.
@@ -257,13 +259,14 @@ class permuter {
         void remove_to_back(int i) {
             uint64_t mask = ~(((uint64_t) 16 << (i << 2)) - 1);
             // clear unused slots
-            uint64_t x = x_ & (((uint64_t) 16 << (LEAF_WIDTH << 2)) - 1);
+            uint64_t x = x_.load(std::memory_order_acquire) & (((uint64_t) 16 << (LEAF_WIDTH << 2)) - 1);
             // decrement size, leave lower slots unchanged
-            x_ = ((x - 1) & ~mask)
+            x_.store( ((x - 1) & ~mask)
                 // shift higher entries down
                 | ((x >> 4) & mask)
                 // shift removed element up
-                | ((x & mask) << ((LEAF_WIDTH - i - 1) << 2));
+                | ((x & mask) << ((LEAF_WIDTH - i - 1) << 2)),
+                std::memory_order_release);
         }
         /** @brief Rotate the permuter's elements between @a i and size().
           @pre 0 <= @a i <= @a j <= size()
@@ -283,39 +286,40 @@ class permuter {
         void rotate(int i, int j) {
             uint64_t mask = (i == LEAF_WIDTH ? (uint64_t) 0 : (uint64_t) 16 << (i << 2)) - 1;
             // clear unused slots
-            uint64_t x = x_ & (((uint64_t) 16 << (LEAF_WIDTH << 2)) - 1);
-            x_ = (x & mask)
+            uint64_t x = x_.load(std::memory_order_acquire) & (((uint64_t) 16 << (LEAF_WIDTH << 2)) - 1);
+            x_.store( (x & mask)
                 | ((x >> ((j - i) << 2)) & ~mask)
-                | ((x & ~mask) << ((LEAF_WIDTH - j) << 2));
+                | ((x & ~mask) << ((LEAF_WIDTH - j) << 2)),
+                std::memory_order_release);
         }
         /** @brief Exchange the elements at positions @a i and @a j. */
         void exchange(int i, int j) {
-            uint64_t diff = ((x_ >> (i << 2)) ^ (x_ >> (j << 2))) & 240;
-            x_ ^= (diff << (i << 2)) | (diff << (j << 2));
+            uint64_t diff = ((x_.load(std::memory_order_acquire) >> (i << 2)) ^ (x_.load(std::memory_order_acquire) >> (j << 2))) & 240;
+            x_.fetch_xor( (diff << (i << 2)) | (diff << (j << 2)), std::memory_order_acq_rel);
         }
         /** @brief Exchange positions of values @a x and @a y. */
         void exchange_values(int x, int y) {
-            uint64_t diff = 0, p = x_;
+            uint64_t diff = 0, p = x_.load(std::memory_order_acquire);
             for (int i = 0; i < LEAF_WIDTH; ++i, diff <<= 4, p <<= 4) {
                 int v = (p >> (LEAF_WIDTH << 2)) & 15;
                 diff ^= -((v == x) | (v == y)) & (x ^ y);
             }
-            x_ ^= diff;
+            x_.fetch_xor( diff, std::memory_order_acq_rel);
         }
 
         bool operator==(const permuter& x) const {
-            return x_ == x.x_;
+            return x_.load(std::memory_order_acquire) == x.x_.load(std::memory_order_acquire);
         }
         bool operator!=(const permuter& x) const {
             return !(*this == x);
         }
 
         int operator&(uint64_t mask) {
-            return x_ & mask;
+            return x_.load(std::memory_order_acquire) & mask;
         }
 
         void operator>>=(uint64_t mask) {
-            x_ = (x_ >> mask);
+            x_.store( (x_.load(std::memory_order_acquire) >> mask), std::memory_order_release);
         }
 
         static inline int size(uint64_t p) {
@@ -323,13 +327,13 @@ class permuter {
         }
 
     private:
-        uint64_t x_;
+        std::atomic<uint64_t> x_;
 };
 
 class leafnode {
     private:
         permuter permutation;                                   // 8bytes
-        leafnode *next;                                         // 8bytes
+        std::atomic<leafnode *> next;                           // 8bytes
         std::atomic<uint64_t> typeVersionLockObsolete{0b100};   // 8bytes
         leafnode *leftmost_ptr;                                 // 8bytes
         uint64_t highest;                                       // 8bytes
@@ -414,7 +418,7 @@ class leafnode {
 
         leafnode *leftmost() {return leftmost_ptr;}
 
-        leafnode *next_() {return next;}
+        leafnode *next_() {return next.load(std::memory_order_acquire);}
 
         uint64_t highest_() {return highest;}
 
@@ -430,7 +434,7 @@ class leafnode {
 
         leafvalue *smallest_leaf(size_t key_len, uint64_t value);
 
-        leafnode *search_for_leftsibling(void **root, uint64_t key, uint32_t level, leafnode *right);
+        leafnode *search_for_leftsibling(std::atomic<void*> *root1, void **root, uint64_t key, uint32_t level, leafnode *right);
 };
 
 }

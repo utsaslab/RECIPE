@@ -223,7 +223,7 @@ namespace ART_ROWEX {
         switch (node->getType()) {
             case NTypes::N4: {
                 auto n = static_cast<N4 *>(node);
-                if (n->compactCount == 4 && n->count <= 3) {
+                if (n->compactCount.load(std::memory_order_acquire) == 4 && n->count.load(std::memory_order_acquire) <= 3) {
                     if (!insertCompact<N4>(n, parentNode, keyParent, key, val, threadInfo, needRestart))
                         insertGrow<N4, N16>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
                     break;
@@ -233,7 +233,7 @@ namespace ART_ROWEX {
             }
             case NTypes::N16: {
                 auto n = static_cast<N16 *>(node);
-                if (n->compactCount == 16 && n->count <= 14) {
+                if (n->compactCount.load(std::memory_order_acquire) == 16 && n->count.load(std::memory_order_acquire) <= 14) {
                     if (!insertCompact<N16>(n, parentNode, keyParent, key, val, threadInfo, needRestart))
                         insertGrow<N16, N48>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
                     break;
@@ -243,7 +243,7 @@ namespace ART_ROWEX {
             }
             case NTypes::N48: {
                 auto n = static_cast<N48 *>(node);
-                if (n->compactCount == 48 && n->count != 48) {
+                if (n->compactCount.load(std::memory_order_acquire) == 48 && n->count.load(std::memory_order_acquire) != 48) {
                     if (!insertCompact<N48>(n, parentNode, keyParent, key, val, threadInfo, needRestart))
                         insertGrow<N48, N256>(n, parentNode, keyParent, key, val, threadInfo, needRestart);
                     break;
