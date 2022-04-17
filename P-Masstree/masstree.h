@@ -112,6 +112,15 @@ class permuter {
         permuter(uint64_t x) : x_(x) {
         }
 
+        permuter(const permuter &rhs) {
+            x_.store(rhs.x_.load(std::memory_order_acquire), std::memory_order_release);
+        }
+
+        permuter &operator=(const permuter &rhs) {
+            x_.store(rhs.x_.load(std::memory_order_acquire), std::memory_order_release);
+            return *this;
+        }
+
         /** @brief Return an empty permuter with size 0.
 
           Elements will be allocated in order 0, 1, ..., @a width - 1. */
