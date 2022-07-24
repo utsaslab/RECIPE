@@ -57,11 +57,18 @@ void lock_initialization()
 }
 #endif
 
-// Attention: for bswap performed, when using memcmp to compare a 9-byte str, 
-// we should compare all the 16 bytes 
-// for the last 1 byte is at the end of the second uint64_t.
-inline size_t aligned_len(const size_t &x) {
-    return (x + sizeof(uint64_t) - 1) / sizeof(uint64_t) * sizeof(uint64_t);
+int keycmp(const uint64_t a[], const uint64_t b[], size_t key_len) {
+    // For memcmp is used both for equal and for "more than"
+    // So only use memcmp to compare "num_u64 * sizeof(uint64_t)" bytes is not enough,
+    // for it only offers true result of "equal" or "not_equal", not "less than" or "more than".
+    // For sign comparison, we should use original uint64_t array to do element-wise comparison.
+    size_t num_u64 = (key_len + sizeof(uint64_t) - 1) / sizeof(uint64_t);
+    for (size_t i = 0; i < num_u64; i++) {
+        if (a[i] != b[i]) {
+            return a[i] < b[i] ? -1 : 1;
+        }
+    }
+    return 0;
 }
 
 masstree::masstree() {
@@ -599,7 +606,7 @@ leaf_retry:
             goto from_root;
         // ii)  Atomically update value for the matching key
         } else if (IS_LV(l->value(kx_.p)) && (LV_PTR(l->value(kx_.p)))->key_len == lv->key_len &&
-                memcmp(lv->fkey, (LV_PTR(l->value(kx_.p)))->fkey, aligned_len(lv->key_len)) == 0) {
+                keycmp(lv->fkey, (LV_PTR(l->value(kx_.p)))->fkey, lv->key_len) == 0) {
             (LV_PTR(l->value(kx_.p)))->value = value;
             clflush((char *)&(LV_PTR(l->value(kx_.p)))->value, sizeof(void *), false, true);
             l->writeUnlock(false);
@@ -821,7 +828,7 @@ leaf_retry:
             goto from_root;
         // ii)  Checking false-positive result and starting to delete it
         } else if (IS_LV(l->value(kx_.p)) && (LV_PTR(l->value(kx_.p)))->key_len == lv->key_len &&
-                memcmp(lv->fkey, (LV_PTR(l->value(kx_.p)))->fkey, aligned_len(lv->key_len)) == 0) {
+                keycmp(lv->fkey, (LV_PTR(l->value(kx_.p)))->fkey, lv->key_len) == 0) {
             if (!(l->leaf_delete(this, root, depth, lv, kx_, threadEpocheInfo))) {
                 free(lv);
                 del(key, threadEpocheInfo);
@@ -1876,7 +1883,7 @@ leaf_retry:
     else {
         if (snapshot_v) {
             if (((leafvalue *)(snapshot_v))->key_len == lv->key_len &&
-                    memcmp(((leafvalue *)(snapshot_v))->fkey, lv->fkey, aligned_len(lv->key_len)) == 0) {
+                    keycmp(((leafvalue *)(snapshot_v))->fkey, lv->fkey, lv->key_len) == 0) {
                 snapshot_v = (void *)(((leafvalue *)(snapshot_v))->value);
             } else {
                 snapshot_v = NULL;
@@ -1992,7 +1999,7 @@ leaf_retry:
                 snapshot_v = (LV_PTR(snapshot_v));
                 if (l->key(perm[i]) > lv->fkey[depth]) {
                     buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v)->value;
-                } else if (l->key(perm[i]) == lv->fkey[depth] && memcmp((LV_PTR(l->value(perm[i])))->fkey, lv->fkey, aligned_len(lv->key_len)) >= 0) {
+                } else if (l->key(perm[i]) == lv->fkey[depth] && keycmp((LV_PTR(l->value(perm[i])))->fkey, lv->fkey, lv->key_len) >= 0) {
                     buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v)->value;
                 }
             }
@@ -2099,7 +2106,7 @@ leaf_retry:
                 snapshot_v = (LV_PTR(snapshot_v));
                 if (l->key(perm[i]) > lv->fkey[depth]) {
                     buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v)->value;
-                } else if (l->key(perm[i]) == lv->fkey[depth] && memcmp((LV_PTR(l->value(perm[i])))->fkey, lv->fkey, aligned_len(lv->key_len)) >= 0) {
+                } else if (l->key(perm[i]) == lv->fkey[depth] && keycmp((LV_PTR(l->value(perm[i])))->fkey, lv->fkey, lv->key_len) >= 0) {
                     buf[count++] = reinterpret_cast<leafvalue *> (snapshot_v)->value;
                 }
             }
