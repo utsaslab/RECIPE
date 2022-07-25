@@ -37,6 +37,9 @@
 #include "atomic_ops.h"
 #include "utils.h"
 
+#include <libpmemobj.h>
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -61,7 +64,7 @@ extern __thread ssmem_allocator_t* clht_alloc;
 #define CLHT_RATIO_HALVE      8
 #define CLHT_MIN_CLHT_SIZE    8
 #define CLHT_DO_CHECK_STATUS  0
-#define CLHT_DO_GC            0
+#define CLHT_DO_GC            1
 #define CLHT_STATUS_INVOK     500000
 #define CLHT_STATUS_INVOK_IN  500000
 #define LOAD_FACTOR           2
@@ -156,11 +159,13 @@ typedef volatile uint8_t clht_lock_t;
 
 typedef struct ALIGNED(CACHE_LINE_SIZE) bucket_s
 {
+  // Although our current implementation does not provide post-crash mechanism,
+  // the locks should be released after a crash (Please refer to the function clht_lock_initialization())
   clht_lock_t lock;
   volatile uint32_t hops;
   clht_addr_t key[ENTRIES_PER_BUCKET];
   clht_val_t val[ENTRIES_PER_BUCKET];
-  volatile struct bucket_s* next;
+  uint64_t next_off;
 } bucket_t;
 
 //#if __GNUC__ > 4 && __GNUC_MINOR__ > 4
@@ -173,11 +178,13 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) clht
   {
     struct
     {
-      struct clht_hashtable_s* ht;
+      uint64_t ht_off;
       uint8_t next_cache_line[CACHE_LINE_SIZE - (sizeof(void*))];
       struct clht_hashtable_s* ht_oldest;
       struct ht_ts* version_list;
       size_t version_min;
+      // Although our current implementation does not provide post-crash mechanism,
+      // the locks should be released after a crash (Please refer to the function clht_lock_initialization())
       volatile clht_lock_t resize_lock;
       volatile clht_lock_t gc_lock;
       volatile clht_lock_t status_lock;
@@ -193,7 +200,7 @@ typedef struct ALIGNED(CACHE_LINE_SIZE) clht_hashtable_s
     struct
     {
       size_t num_buckets;
-      bucket_t* table;
+      uint64_t table_off;
       size_t hash;
       size_t version;
       uint8_t next_cache_line[CACHE_LINE_SIZE - (3 * sizeof(size_t)) - (sizeof(void*))];
@@ -407,40 +414,64 @@ clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
 clht_t* clht_create(uint64_t num_buckets);
 
 /* Insert a key-value pair into a hashtable. */
-int clht_put(clht_t* hashtable, clht_addr_t key, clht_val_t val);
+int clht_put(clht_t* h, clht_addr_t key, clht_val_t val);
+
+/* Update a value associated with a key */
+int clht_update(clht_t* h, clht_addr_t key, clht_val_t val);
 
 /* Retrieve a key-value pair from a hashtable. */
-clht_val_t clht_get(clht_hashtable_t* hashtable, clht_addr_t key);
+clht_val_t clht_get(clht_t* h, clht_addr_t key);
 
 /* Remove a key-value pair from a hashtable. */
-clht_val_t clht_remove(clht_t* hashtable, clht_addr_t key);
+clht_val_t clht_remove(clht_t* h, clht_addr_t key);
 
 size_t clht_size(clht_hashtable_t* hashtable);
-size_t clht_size_mem(clht_hashtable_t* hashtable);
-size_t clht_size_mem_garbage(clht_hashtable_t* hashtable);
+size_t clht_size_mem(clht_hashtable_t* h);
+size_t clht_size_mem_garbage(clht_hashtable_t* h);
 
-void clht_gc_thread_init(clht_t* hashtable, int id);
+void clht_gc_thread_init(clht_t* h, int id);
 extern  void clht_gc_thread_version(clht_hashtable_t* h);
 extern int clht_gc_get_id();
-int clht_gc_collect(clht_t* h);
-int clht_gc_release(clht_hashtable_t* h);
-int clht_gc_collect_all(clht_t* h);
+int clht_gc_collect(clht_t* hashtable);
+int clht_gc_release(clht_hashtable_t* hashtable);
+int clht_gc_collect_all(clht_t* hashtable);
 int clht_gc_free(clht_hashtable_t* hashtable);
 void clht_gc_destroy(clht_t* hashtable);
 
 void clht_print(clht_hashtable_t* hashtable);
 #if defined(CLHT_LB_LINKED)
 /* emergency_increase, grabs the lock and forces an increase by *emergency_increase times */
-size_t ht_status(clht_t* hashtable, int resize_increase, int emergency_increase, int just_print);
+size_t ht_status(clht_t* h, int resize_increase, int emergency_increase, int just_print);
 #else
-size_t ht_status(clht_t* hashtable, int resize_increase, int just_print);
+size_t ht_status(clht_t* h, int resize_increase, int just_print);
 #endif
 bucket_t* clht_bucket_create();
-int ht_resize_pes(clht_t* hashtable, int is_increase, int by);
+int ht_resize_pes(clht_t* h, int is_increase, int by);
 
 const char* clht_type_desc();
 
 void clht_lock_initialization(clht_t *h);
+
+extern void *clht_ptr_from_off(uint64_t offset, bool alignment);
+
+// Initialize the persistent memory pool
+POBJ_LAYOUT_BEGIN(clht);
+POBJ_LAYOUT_ROOT(clht, clht_t);
+POBJ_LAYOUT_TOID(clht, clht_hashtable_t);
+POBJ_LAYOUT_TOID(clht, bucket_t);
+POBJ_LAYOUT_END(clht);
+
+// Global pool uuid
+uint64_t pool_uuid;
+
+// Global pool pointer
+PMEMobjpool *pop;
+
+// pmemobj header size (presume using default compact header)
+#define POBJ_HEADER_SIZE        16
+
+#define ALIGNMENT_PADDING       (CACHE_LINE_SIZE - POBJ_HEADER_SIZE)
+
 #ifdef __cplusplus
 }
 #endif

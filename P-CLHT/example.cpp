@@ -8,7 +8,7 @@
 
 using namespace std;
 
-#include "clht.h"
+#include "clht_lb_res.h"
 #include "ssmem.h"
 
 typedef struct thread_data {
@@ -117,7 +117,7 @@ void run(char **argv) {
             barrier_cross(&barrier);
 
             for (uint64_t i = start_key; i < end_key; i++) {
-                    uintptr_t val = clht_get(tds[thread_id].ht->ht, keys[i]);
+                    uintptr_t val = clht_get(tds[thread_id].ht, keys[i]);
                     if (val != keys[i]) {
                         std::cout << "[CLHT] wrong key read: " << val << "expected: " << keys[i] << std::endl;
                         exit(1);
