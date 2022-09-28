@@ -19,7 +19,34 @@ Se Kwon Lee, Jayashree Mohan, Sanidhya Kashyap, Taesoo Kim, Vijay Chidambaram.
   address =      "Ontario, Canada",
 }
 ```
-## Integrating RECIPE indexes into your own project
+
+## News
+
+#### RECIPE Applications
+- P-CLHT has been used to build [DINOMO](https://github.com/utsaslab/dinomo), a key-value store for disaggregated persistent memory.
+
+#### Improvements made after the SOSP paper
+The following improvements are made to the codebase after the SOSP paper.
+- Resolve the problems readers return uncommitted value (Issue [#13](https://github.com/utsaslab/RECIPE/issues/13) and pull reqeusts [#11](https://github.com/utsaslab/RECIPE/pull/11), [#12](https://github.com/utsaslab/RECIPE/pull/12))
+
+## Contents
+
+1. `P-CLHT/` contains the source code for P-CLHT. It is converted from Cache-Line Hash Table to be persistent. The original source code and paper can be found in [code](https://github.com/LPD-EPFL/CLHT) and [paper](https://dl.acm.org/citation.cfm?id=2694359).
+2. `P-HOT/` contains the source code for P-HOT. It is converted from Height Optimized Trie to be persistent. The original source code and paper can be found in [code](https://github.com/speedskater/hot) and [paper](https://dl.acm.org/citation.cfm?id=3196896).
+3. `P-BwTree/` contains the source code for P-BwTree. It is converted from an open sourced implementation of BwTree for persistent memory. The original source code and paper can be found in [code](https://github.com/wangziqi2013/BwTree) and [paper](https://dl.acm.org/citation.cfm?id=3196895).
+4. `P-ART/` contains the source code for P-ART. It is converted for persistent memory from Adaptive Radix Tree using ROWEX for concurrency. The original source code and paper can be found in [code](https://github.com/flode/ARTSynchronized) and [paper](https://dl.acm.org/citation.cfm?id=2933352).
+5. `P-Masstree/` contains the source code for P-Masstree. It is converted from Masstree to be persistent and is custumized for the compact version. The original source code and paper can be found in [code](https://github.com/kohler/masstree-beta) and [paper](https://dl.acm.org/citation.cfm?id=2168855).
+6. `index-microbench/` contains the benchmark framework to generate YCSB workloads. The original source code can be found in [code](https://github.com/wangziqi2016/index-microbench).
+
+#### Recommended use cases for RECIPE indexes
+
+1. `P-CLHT` is a good fit for applications requiring high-performance point queries.
+2. `P-HOT` is a good fit for  applications with read-dominated workloads.
+3. `P-BwTree` provides well-balanced performance for insertion, lookup, and range scan operations for applications using integer keys.
+4. `P-ART` is suitable for  applications with insertion-dominated workloads and a small number of range queries.
+5. `P-Masstree` provides well-balanced performance for insertion, lookup, and range scan operations for applications using either integer or string keys.
+
+#### Integrating RECIPE indexes into your own project
 
 Apart from benchmark code with `ycsb.cpp`, we provide simple example codes (`P-*/example.cpp` for each RECIPE index) 
 to help developers who want to apply RECIPE indexes into their own project to easily identify how to use each index's APIs. 
@@ -46,27 +73,6 @@ apply them for RECIPE data structures.
 As a first step, we are working on replacing current volatile allocator with [PMDK](https://pmem.io/pmdk/) library and on
 solving permanent memory leaks using the functions provided by it [[5]](#5). Please check out
 the `pmdk` branch for the updates of this work as well as these [details](pmdk.md).
-
-#### Read Committed (Transactional Isolation Levels)
-This issue has been resolved in current implementations after SOSP'19. 
-Please check out issue [#13](https://github.com/utsaslab/RECIPE/issues/13) and pull reqeusts [#11](https://github.com/utsaslab/RECIPE/pull/11), [#12](https://github.com/utsaslab/RECIPE/pull/12) for details.
-
-## Contents
-
-1. `P-CLHT/` contains the source code for P-CLHT. It is converted from Cache-Line Hash Table to be persistent. The original source code and paper can be found in [code](https://github.com/LPD-EPFL/CLHT) and [paper](https://dl.acm.org/citation.cfm?id=2694359).
-2. `P-HOT/` contains the source code for P-HOT. It is converted from Height Optimized Trie to be persistent. The original source code and paper can be found in [code](https://github.com/speedskater/hot) and [paper](https://dl.acm.org/citation.cfm?id=3196896).
-3. `P-BwTree/` contains the source code for P-BwTree. It is converted from an open sourced implementation of BwTree for persistent memory. The original source code and paper can be found in [code](https://github.com/wangziqi2013/BwTree) and [paper](https://dl.acm.org/citation.cfm?id=3196895).
-4. `P-ART/` contains the source code for P-ART. It is converted for persistent memory from Adaptive Radix Tree using ROWEX for concurrency. The original source code and paper can be found in [code](https://github.com/flode/ARTSynchronized) and [paper](https://dl.acm.org/citation.cfm?id=2933352).
-5. `P-Masstree/` contains the source code for P-Masstree. It is converted from Masstree to be persistent and is custumized for the compact version. The original source code and paper can be found in [code](https://github.com/kohler/masstree-beta) and [paper](https://dl.acm.org/citation.cfm?id=2168855).
-6. `index-microbench/` contains the benchmark framework to generate YCSB workloads. The original source code can be found in [code](https://github.com/wangziqi2016/index-microbench).
-
-### Recommended use cases for RECIPE indexes
-
-1. `P-CLHT` is a good fit for applications requiring high-performance point queries.
-2. `P-HOT` is a good fit for  applications with read-dominated workloads.
-3. `P-BwTree` provides well-balanced performance for insertion, lookup, and range scan operations for applications using integer keys.
-4. `P-ART` is suitable for  applications with insertion-dominated workloads and a small number of range queries.
-5. `P-Masstree` provides well-balanced performance for insertion, lookup, and range scan operations for applications using either integer or string keys.
 
 ## Running RECIPE Indexes on Persistent Memory and DRAM
 
@@ -195,12 +201,6 @@ $ sudo su
 For artifact evaluation, we will evaluate again the performance of the index structures presented in the paper by using YCSB benchmark. The index structures tested for artifact evaluation include `P-CLHT` `P-ART`, `P-HOT`, `P-Masstree`, `P-Bwtree`, `FAST&FAIR`, `WOART`, `CCEH`, and `Level hashing`. The evaluation results will be stored in `./results` directory as csv files. Please make sure to check the contents at least by `checklists` subsection in [Benchmark details](https://github.com/utsaslab/RECIPE#benchmark-details) section below, before beginning artifact evaluation. Note that the evaluations re-generated for artifact evaluation will be based on DRAM because Optane DC persistent memory machine used for the evaluations presented in the paper has the hard access limitation from external users. For more detail, please refer to [experiments.md](https://github.com/utsaslab/RECIPE/blob/master/experiments.md).
 
 **RECIPE** has been awarded three badges: **Artifact Available**, **Artifact Functional**, and **Results Reproduced**.
-
-## Improvements made after the SOSP paper
-
-The following improvements are made to the codebase after the SOSP paper:
-
-- Resolve the problems readers return uncommitted value (Issue [#13](https://github.com/utsaslab/RECIPE/issues/13) and pull reqeusts [#11](https://github.com/utsaslab/RECIPE/pull/11), [#12](https://github.com/utsaslab/RECIPE/pull/12))
 
 ## References
 <a id="1">[1]</a>
