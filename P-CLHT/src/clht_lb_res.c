@@ -38,6 +38,10 @@
 
 #include "clht_lb_res.h"
 
+uint64_t pool_uuid;
+
+PMEMobjpool *pop;
+
 //#define CLHTDEBUG
 
 __thread ssmem_allocator_t* clht_alloc;

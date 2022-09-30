@@ -462,10 +462,10 @@ POBJ_LAYOUT_TOID(clht, bucket_t);
 POBJ_LAYOUT_END(clht);
 
 // Global pool uuid
-uint64_t pool_uuid;
+extern uint64_t pool_uuid;
 
 // Global pool pointer
-PMEMobjpool *pop;
+extern PMEMobjpool *pop;
 
 // pmemobj header size (presume using default compact header)
 #define POBJ_HEADER_SIZE        16
