@@ -319,8 +319,7 @@ clht_hash(clht_hashtable_t* hashtable, clht_addr_t key)
 
 
 /* Retrieve a key-value entry from a hash table. */
-    clht_val_t
-clht_get(clht_hashtable_t* hashtable, clht_addr_t key)
+clht_val_t clht_get(clht_hashtable_t* hashtable, clht_addr_t key)
 {
     size_t bin = clht_hash(hashtable, key);
     CLHT_GC_HT_VERSION_USED(hashtable);
@@ -374,8 +373,7 @@ bucket_exists(volatile bucket_t* bucket, clht_addr_t key)
 }
 
 /* Insert a key-value entry into a hash table. */
-    int
-clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
+bool clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
 {
     clht_hashtable_t* hashtable = h->ht;
     size_t bin = clht_hash(hashtable, key);
@@ -471,8 +469,7 @@ clht_put(clht_t* h, clht_addr_t key, clht_val_t val)
 
 
 /* Remove a key-value entry from a hash table. */
-    clht_val_t
-clht_remove(clht_t* h, clht_addr_t key)
+clht_val_t clht_remove(clht_t* h, clht_addr_t key)
 {
     clht_hashtable_t* hashtable = h->ht;
     size_t bin = clht_hash(hashtable, key);
@@ -481,7 +478,7 @@ clht_remove(clht_t* h, clht_addr_t key)
 #if CLHT_READ_ONLY_FAIL == 1
     if (!bucket_exists(bucket, key))
     {
-        return false;
+        return 0;
     }
 #endif
 
@@ -516,7 +513,7 @@ clht_remove(clht_t* h, clht_addr_t key)
     }
     while (unlikely(bucket != NULL));
     LOCK_RLS(lock);
-    return false;
+    return 0;
 }
 
     static uint32_t

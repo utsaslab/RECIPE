@@ -36,6 +36,7 @@
 #include <inttypes.h>
 #include "atomic_ops.h"
 #include "utils.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -407,7 +408,7 @@ clht_hashtable_t* clht_hashtable_create(uint64_t num_buckets);
 clht_t* clht_create(uint64_t num_buckets);
 
 /* Insert a key-value pair into a hashtable. */
-int clht_put(clht_t* hashtable, clht_addr_t key, clht_val_t val);
+bool clht_put(clht_t* hashtable, clht_addr_t key, clht_val_t val);
 
 /* Retrieve a key-value pair from a hashtable. */
 clht_val_t clht_get(clht_hashtable_t* hashtable, clht_addr_t key);
