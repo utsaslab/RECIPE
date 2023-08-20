@@ -13,7 +13,7 @@ namespace hot { namespace rowex {
 constexpr intptr_t NODE_ALGORITHM_TYPE_EXTRACTION_MASK = 0x7u;
 constexpr intptr_t POINTER_AND_IS_LEAF_VALUE_MASK = 15u;
 constexpr intptr_t POINTER_EXTRACTION_MASK = ~(POINTER_AND_IS_LEAF_VALUE_MASK);
-constexpr intptr_t DirtyFlag = 0b100;
+constexpr intptr_t DirtyFlag = 0b10000;
 
 template<hot::commons::NodeType nodeAlgorithmType> inline auto HOTRowexChildPointer::castToNode(HOTRowexNodeBase const * node) {
 	using DiscriminativeBitsRepresentationType = typename hot::commons::NodeTypeToNodeParameters<nodeAlgorithmType>::PartialKeyMappingType ;
