@@ -1,6 +1,8 @@
 #include "masstree.h"
 #include "Epoche.cpp"
 
+#include <memory>
+
 using namespace MASS;
 
 namespace masstree {
