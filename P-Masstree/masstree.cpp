@@ -740,7 +740,7 @@ void masstree::del(char *key, ThreadInfo &threadEpocheInfo)
     leafnode *next = NULL;
     void *snapshot_v = NULL;
 
-    leafvalue *lv = make_leaf(key, strlen(key), 0);
+    std::unique_ptr<leafvalue> lv(make_leaf(key, strlen(key), 0));
 
     int needRestart;
     uint64_t v;
@@ -757,7 +757,7 @@ inter_retry:
             // check for recovery
             if (p->tryLock(needRestart)) {
                 if (next->tryLock(needRestart))
-                    p->check_for_recovery(this, p, next, root, depth, lv);
+                    p->check_for_recovery(this, p, next, root, depth, lv.get());
                 else
                     p->writeUnlock(false);
             }
@@ -797,7 +797,7 @@ leaf_retry:
         //check for recovery
         if (l->tryLock(needRestart)) {
             if (next->tryLock(needRestart))
-                l->check_for_recovery(this, l, next, root, depth, lv);
+                l->check_for_recovery(this, l, next, root, depth, lv.get());
             else
                 l->writeUnlock(false);
         }
@@ -836,18 +836,15 @@ leaf_retry:
         // ii)  Checking false-positive result and starting to delete it
         } else if (IS_LV(l->value(kx_.p)) && (LV_PTR(l->value(kx_.p)))->key_len == lv->key_len &&
                 memcmp(lv->fkey, (LV_PTR(l->value(kx_.p)))->fkey, aligned_len(lv->key_len)) == 0) {
-            if (!(l->leaf_delete(this, root, depth, lv, kx_, threadEpocheInfo))) {
-                free(lv);
+            if (!(l->leaf_delete(this, root, depth, lv.get(), kx_, threadEpocheInfo))) {
                 del(key, threadEpocheInfo);
             }
         } else {
             l->writeUnlock(false);
-            free(lv);
             return ;
         }
     } else {
         l->writeUnlock(false);
-        free(lv);
         return ;
     }
 }
@@ -1805,7 +1802,7 @@ void *masstree::get(char *key, ThreadInfo &threadEpocheInfo)
     int needRestart;
     uint64_t v;
 
-    leafvalue *lv = make_leaf(key, strlen(key), 0);
+    std::unique_ptr<leafvalue> lv(make_leaf(key, strlen(key), 0));
 
 restart:
     depth = 0;
