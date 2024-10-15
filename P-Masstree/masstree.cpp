@@ -742,7 +742,8 @@ void masstree::del(char *key, ThreadInfo &threadEpocheInfo)
     leafnode *next = NULL;
     void *snapshot_v = NULL;
 
-    std::unique_ptr<leafvalue> lv(make_leaf(key, strlen(key), 0));
+    auto customDeleter = [](leafvalue *lv) { free(lv); };
+    std::unique_ptr<leafvalue, decltype(customDeleter)> lv(make_leaf(key, strlen(key), 0), customDeleter);
 
     int needRestart;
     uint64_t v;
@@ -1804,7 +1805,8 @@ void *masstree::get(char *key, ThreadInfo &threadEpocheInfo)
     int needRestart;
     uint64_t v;
 
-    std::unique_ptr<leafvalue> lv(make_leaf(key, strlen(key), 0));
+    auto customDeleter = [](leafvalue *lv) { free(lv); };
+    std::unique_ptr<leafvalue, decltype(customDeleter)> lv(make_leaf(key, strlen(key), 0), customDeleter);
 
 restart:
     depth = 0;
